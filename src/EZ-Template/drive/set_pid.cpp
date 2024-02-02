@@ -131,6 +131,13 @@ int Drive::pid_swing_min_get() { return swing_min; }
 
 // Set drive PID raw
 void Drive::pid_drive_set(double target, int speed, bool slew_on, bool toggle_heading) {
+  if (odometry_enabled) {
+    pose ptarget = util::vector_off_point(target, odom_target);
+    turn_types dir = util::sgn(target) ? fwd : rev;
+    pid_odom_ptp_set({ptarget, dir, speed}, slew_on);
+  }
+
+
   // Print targets
   if (print_toggle) printf("Drive Started... Target Value: %f in", target);
   if (slew_on && print_toggle) printf(" with slew");
