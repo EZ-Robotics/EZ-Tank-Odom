@@ -356,6 +356,7 @@ class Drive {
   void pid_odom_ptp_set(odom imovement, bool slew_on);
   int is_past_target();
   int past_target = 0;
+  std::vector<pose> point_to_face = {{0, 0, 0}, {0, 0, 0}};
 
   /////
   //
@@ -1444,7 +1445,7 @@ class Drive {
   bool turn_with_encoder = false;
   turn_types current_turn_type = fwd;
   bool ptf1_running = false;
-  std::vector<pose> find_point_to_face(bool set_global = false);
+  std::vector<pose> find_point_to_face(pose current, pose target, bool set_global = false);
 
   /**
    * Private wait until for drive

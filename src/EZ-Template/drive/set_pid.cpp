@@ -191,6 +191,8 @@ void Drive::pid_turn_set(double target, int speed, bool slew_on) {
   // Set PID targets
   turnPID.target_set(target);
   headingPID.target_set(target);  // Update heading target for next drive motion
+  odom_target.theta = target;
+  odom_current.theta = target;
   pid_speed_max_set(speed);
 
   // Initialize slew
@@ -296,13 +298,41 @@ void Drive::pid_swing_relative_set(e_swing type, double target, int speed, int o
 // Odom Stuff
 /////
 
+int Drive::is_past_target() {
+  double distance_to_target = util::distance_to_point(odom_target, odom_current);
+  double fake_y = (odom_target.y - odom_current.y);
+  double new_y = fake_y * fabs(distance_to_target / fake_y);
+  return util::sgn(new_y);
+}
+
+std::vector<pose> Drive::find_point_to_face(pose current, pose target, bool set_global) {
+  double tx_cx = target.x - current.x;
+  double m = 0.0;
+  if (tx_cx != 0)
+    m = (target.y - current.y) / tx_cx;
+  double angle = util::to_deg(m);
+  pose ptf1 = util::vector_off_point(24.0, {target.x, target.y, angle});
+  pose ptf2 = util::vector_off_point(24.0, {target.x, target.y, angle + 180});
+
+  if (set_global) {
+    double ptf1_dist = util::distance_to_point(ptf1, current);
+    double ptf2_dist = util::distance_to_point(ptf2, current);
+    if (ptf1_dist > ptf2_dist) {
+      ptf1_running = true;
+    } else {
+      ptf1_running = false;
+    }
+  }
+  printf("\n");
+  return {ptf1, ptf2};
+}
+
 // Set turn PID to point
 void Drive::pid_turn_set(pose itarget, turn_types dir, int speed, bool slew_on) {
   current_turn_type = dir;
-  turn_to_point_target = itarget;
 
   int add = current_turn_type == REV ? 180 : 0;
-  odom_target.theta = util::absolute_angle_to_point(turn_to_point_target, odom_current) + add;
+  odom_target.theta = util::absolute_angle_to_point({itarget.x, itarget.y}, odom_target) + add;
   double target = util::wrap_angle(odom_target.theta - drive_imu_get()) + drive_imu_get();
 
   if (print_toggle) printf("Turn to Point PID Started... Target Point: (%f, %f) \n", itarget.x, itarget.y);
@@ -316,18 +346,23 @@ void Drive::pid_odom_ptp_set(odom imovement, bool slew_on) {
   // Update current turn type
   current_turn_type = imovement.turn_type;
 
+  // Calculate the point to look at
+  point_to_face = find_point_to_face(odom_target, {imovement.target.x, imovement.target.y}, true);
+
+  // Set max speed
+  pid_speed_max_set(imovement.max_xy_speed);
+
   // Only update angle if the new target is unique
   if (imovement.target.x != odom_target.x && imovement.target.y != odom_target.y)
     odom_target.theta = util::absolute_angle_to_point(imovement.target, odom_target);
 
-  pid_speed_max_set(imovement.max_xy_speed);
-
+  // Set targets
   odom_target.x = imovement.target.x;
   odom_target.y = imovement.target.y;
 
   // Change constants if we're going fwd or rev
   PID::Constants pid_consts;
-  PID::Constants angle_consts = headingPID.constants_get();
+  PID::Constants angle_consts = turnPID.constants_get();
   if (imovement.turn_type == REV) {
     pid_consts = backward_drivePID.constants_get();
 
@@ -341,9 +376,8 @@ void Drive::pid_odom_ptp_set(odom imovement, bool slew_on) {
 
   if (print_toggle) printf("Odom Motion Started... Target Coordinates: (%f, %f, %f) \n", imovement.target.x, imovement.target.y, imovement.target.theta);
 
+  // Get the starting point for if we're positive or negative.  This is used to find if we've past target
   past_target = is_past_target();
-
-  find_point_to_face(true);
 
   drive_mode_set(POINT_TO_POINT);
 }
