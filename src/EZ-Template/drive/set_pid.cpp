@@ -135,8 +135,8 @@ void Drive::pid_drive_set(double target, int speed, bool slew_on, bool toggle_he
     pose ptarget = util::vector_off_point(target, odom_target);
     turn_types dir = util::sgn(target) ? fwd : rev;
     pid_odom_ptp_set({ptarget, dir, speed}, slew_on);
+    return;
   }
-
 
   // Print targets
   if (print_toggle) printf("Drive Started... Target Value: %f in", target);
@@ -369,22 +369,33 @@ void Drive::pid_odom_ptp_set(odom imovement, bool slew_on) {
 
   // Change constants if we're going fwd or rev
   PID::Constants pid_consts;
+  slew::Constants slew_consts;
   PID::Constants angle_consts = turnPID.constants_get();
   if (imovement.turn_type == REV) {
     pid_consts = backward_drivePID.constants_get();
+    slew_consts = slew_backward.constants_get();
 
   } else {
     pid_consts = forward_drivePID.constants_get();
+    slew_consts = slew_forward.constants_get();
   }
 
   // Set targets for the side that isn't moving
   xyPID.constants_set(pid_consts.kp, pid_consts.ki, pid_consts.kd, pid_consts.start_i);
   aPID.constants_set(angle_consts.kp, angle_consts.ki, angle_consts.kd, angle_consts.start_i);
+  slew_left.constants_set(slew_consts.distance_to_travel, slew_consts.min_speed);
+  slew_right.constants_set(slew_consts.distance_to_travel, slew_consts.min_speed);
 
   if (print_toggle) printf("Odom Motion Started... Target Coordinates: (%f, %f, %f) \n", imovement.target.x, imovement.target.y, imovement.target.theta);
 
   // Get the starting point for if we're positive or negative.  This is used to find if we've past target
   past_target = is_past_target();
+
+  // Initialize slew
+  int dir = (current_turn_type == REV ? -1 : 1);  // If we're going backwards, add a -1
+  double dist_to_target = util::distance_to_point(odom_target, odom_current) * dir;
+  slew_left.initialize(slew_on, max_speed, dist_to_target + drive_sensor_left(), drive_sensor_left());
+  slew_right.initialize(slew_on, max_speed, dist_to_target + drive_sensor_right(), drive_sensor_right());
 
   drive_mode_set(POINT_TO_POINT);
 }

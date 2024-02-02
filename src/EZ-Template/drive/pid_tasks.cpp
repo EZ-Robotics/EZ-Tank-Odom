@@ -182,8 +182,13 @@ void Drive::ptp_task() {
   double left_output = xy_out + headingPID.output;
   double right_output = xy_out - headingPID.output;
 
+  // Compute slew
+  slew_left.iterate(drive_sensor_left());
+  slew_right.iterate(drive_sensor_right());
+  printf("left: %.2f   right: %.2f\n", slew_left.output(), slew_right.output());
+
   // Vector scaling
-  double biggest = pid_speed_max_get();
+  double biggest = fmin(slew_left.output(), slew_right.output());
   if (fabs(left_output) > biggest || fabs(right_output) > biggest) {
     if (fabs(left_output) > fabs(right_output)) {
       right_output = right_output * (biggest / fabs(left_output));
