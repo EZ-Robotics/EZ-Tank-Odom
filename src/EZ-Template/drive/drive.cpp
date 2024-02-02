@@ -17,7 +17,7 @@ using namespace ez;
 
 // Constructor for integrated encoders
 Drive::Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports,
-             int imu_port, double wheel_diameter, double ticks, double ratio)
+             int imu_port, double wheel_diameter, double ticks, double ratio, double drive_width)
     : imu(imu_port),
       left_tracker(-1, -1, false),   // Default value
       right_tracker(-1, -1, false),  // Default value
@@ -42,13 +42,19 @@ Drive::Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_por
   CARTRIDGE = ticks;
   TICK_PER_INCH = drive_tick_per_inch();
 
+  // Odom drive width
+  if (util::sgn(drive_width) == 1) {
+    drive_width_set(drive_width);
+    drive_odom_enable(true);
+  }
+
   drive_defaults_set();
 }
 
 // Constructor for tracking wheels plugged into the brain
 Drive::Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports,
              int imu_port, double wheel_diameter, double ticks, double ratio,
-             std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports)
+             std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports, double drive_width)
     : imu(imu_port),
       left_tracker(abs(left_tracker_ports[0]), abs(left_tracker_ports[1]), util::reversed_active(left_tracker_ports[0])),
       right_tracker(abs(right_tracker_ports[0]), abs(right_tracker_ports[1]), util::reversed_active(right_tracker_ports[0])),
@@ -73,13 +79,19 @@ Drive::Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_por
   CARTRIDGE = ticks;
   TICK_PER_INCH = drive_tick_per_inch();
 
+  // Odom drive width
+  if (util::sgn(drive_width) == 1) {
+    drive_width_set(drive_width);
+    drive_odom_enable(true);
+  }
+
   drive_defaults_set();
 }
 
 // Constructor for tracking wheels plugged into a 3 wire expander
 Drive::Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports,
              int imu_port, double wheel_diameter, double ticks, double ratio,
-             std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports, int expander_smart_port)
+             std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports, int expander_smart_port, double drive_width)
     : imu(imu_port),
       left_tracker({expander_smart_port, abs(left_tracker_ports[0]), abs(left_tracker_ports[1])}, util::reversed_active(left_tracker_ports[0])),
       right_tracker({expander_smart_port, abs(right_tracker_ports[0]), abs(right_tracker_ports[1])}, util::reversed_active(right_tracker_ports[0])),
@@ -104,13 +116,19 @@ Drive::Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_por
   CARTRIDGE = ticks;
   TICK_PER_INCH = drive_tick_per_inch();
 
+  // Odom drive width
+  if (util::sgn(drive_width) == 1) {
+    drive_width_set(drive_width);
+    drive_odom_enable(true);
+  }
+
   drive_defaults_set();
 }
 
 // Constructor for rotation sensors
 Drive::Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports,
              int imu_port, double wheel_diameter, double ratio,
-             int left_rotation_port, int right_rotation_port)
+             int left_rotation_port, int right_rotation_port, double drive_width)
     : imu(imu_port),
       left_tracker(-1, -1, false),   // Default value
       right_tracker(-1, -1, false),  // Default value
@@ -136,6 +154,12 @@ Drive::Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_por
   RATIO = ratio;
   CARTRIDGE = 36000;
   TICK_PER_INCH = drive_tick_per_inch();
+
+  // Odom drive width
+  if (util::sgn(drive_width) == 1) {
+    drive_width_set(drive_width);
+    drive_odom_enable(true);
+  }
 
   drive_defaults_set();
 }

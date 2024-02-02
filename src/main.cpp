@@ -35,6 +35,9 @@ ez::Drive chassis (
   // eg. if your drive is 60:36 where the 36t is powered, your RATIO would be 60/36 which is 0.6
   // eg. if your drive is 36:60 where the 60t is powered, your RATIO would be 36/60 which is 0.6
   ,1.6667
+
+  // Drive width for odom
+  ,8.93
 );
 
 
@@ -71,8 +74,6 @@ void initialize() {
   ez::ez_template_print();
   
   pros::delay(500); // Stop the user from doing anything while legacy ports configure
-
-  chassis.drive_width_set(8.93);
 
   // Configure your chassis controls
   chassis.opcontrol_curve_buttons_toggle(true); // Enables modifying the controller curve with buttons on the joysticks

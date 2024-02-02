@@ -248,8 +248,10 @@ class Drive {
    *        Motor cartridge RPM
    * \param ratio
    *        External gear ratio, wheel gear / motor gear.
+   * \param drive_width
+   *        Width of the drive in inches, if this is set then odom will enable.
    */
-  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio);
+  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio, double drive_width = -1);
 
   /**
    * Creates a Drive Controller using encoders plugged into the brain.
@@ -271,7 +273,7 @@ class Drive {
    * \param right_tracker_ports
    *        Input {3, 4}.  Make ports negative if reversed!
    */
-  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio, std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports);
+  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio, std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports, double drive_width = -1);
 
   /**
    * Creates a Drive Controller using encoders plugged into a 3 wire expander.
@@ -295,7 +297,7 @@ class Drive {
    * \param expander_smart_port
    *        Port the expander is plugged into.
    */
-  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio, std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports, int expander_smart_port);
+  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio, std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports, int expander_smart_port, double drive_width = -1);
 
   /**
    * Creates a Drive Controller using rotation sensors.
@@ -315,7 +317,7 @@ class Drive {
    * \param right_tracker_port
    *        Make ports negative if reversed!
    */
-  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ratio, int left_rotation_port, int right_rotation_port);
+  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ratio, int left_rotation_port, int right_rotation_port, double drive_width = -1);
 
   /**
    * Sets drive defaults.
@@ -1342,7 +1344,8 @@ class Drive {
       {"Heading PID Constants", &headingPID.constants},
       {"Turn PID Constants", &turnPID.constants},
       {"Swing Forward PID Constants", &forward_swingPID.constants},
-      {"Swing Backward PID Constants", &backward_swingPID.constants}}*/;
+      {"Swing Backward PID Constants", &backward_swingPID.constants}}*/
+      ;
   void pid_tuner_print();
   void pid_tuner_value_modify(float p, float i, float d, float start);
   void pid_tuner_value_increase();
