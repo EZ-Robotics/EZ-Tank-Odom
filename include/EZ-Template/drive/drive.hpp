@@ -324,6 +324,32 @@ class Drive {
 
   /////
   //
+  // Odometry
+  //
+  /////
+
+  /**
+   * Tasks for tracking.
+   */
+  // pros::Task ez_tracking;
+  void ez_tracking_task();
+
+  void drive_width_set(double input);
+  void drive_odom_enable(bool input);
+  double drive_width_get();
+  pose odom_target;
+  pose odom_current;
+  void odom_pose_x_set(double x);
+  void odom_pose_y_set(double y);
+  void odom_pose_set(pose itarget);
+  void odom_pose_theta_set(double a);
+  void odom_reset();
+  bool imu_calibration_complete = false;
+  double angle_rad = 0.0;
+  void pid_turn_encoder(bool input);
+
+  /////
+  //
   // User Control
   //
   /////
@@ -1245,55 +1271,56 @@ class Drive {
    * Sets the value that PID Tuner increments P
    *
    * \param p
-   *        double, p will increase by this
+   *        float, p will increase by this
    */
-  void pid_tuner_increment_p_set(double p);
+  void pid_tuner_increment_p_set(float p);
 
   /**
    * Sets the value that PID Tuner increments I
    *
    * \param p
-   *        double, i will increase by this
+   *        float, i will increase by this
    */
-  void pid_tuner_increment_i_set(double i);
+  void pid_tuner_increment_i_set(float i);
 
   /**
    * Sets the value that PID Tuner increments D
    *
    * \param p
-   *        double, d will increase by this
+   *        float, d will increase by this
    */
-  void pid_tuner_increment_d_set(double d);
+  void pid_tuner_increment_d_set(float d);
 
   /**
    * Sets the value that PID Tuner increments Start I
    *
    * \param p
-   *        double, start i will increase by this
+   *        float, start i will increase by this
    */
-  void pid_tuner_increment_start_i_set(double start_i);
+  void pid_tuner_increment_start_i_set(float start_i);
 
   /**
    * Returns the value that PID Tuner increments P
    */
-  double pid_tuner_increment_p_get();
+  float pid_tuner_increment_p_get();
 
   /**
    * Returns the value that PID Tuner increments I
    */
-  double pid_tuner_increment_i_get();
+  float pid_tuner_increment_i_get();
 
   /**
    * Returns the value that PID Tuner increments D
    */
-  double pid_tuner_increment_d_get();
+  float pid_tuner_increment_d_get();
 
   /**
    * Returns the value that PID Tuner increments Start I
    */
-  double pid_tuner_increment_start_i_get();
+  float pid_tuner_increment_start_i_get();
 
  private:  // !Auton
+           // PID Tuner
   bool drive_toggle = true;
   bool print_toggle = true;
   int swing_min = 0;
@@ -1305,14 +1332,19 @@ class Drive {
   bool slew_swing_using_angle = false;
   bool pid_tuner_terminal_b = false;
   bool pid_tuner_lcd_b = true;
-
   struct const_and_name {
     std::string name = "";
     PID::Constants *consts;
   };
-  std::vector<const_and_name> constants;
+  std::vector<const_and_name> constants /*= {
+      {"Drive Forward PID Constants", &forward_drivePID.constants},
+      {"Drive Backward PID Constants", &backward_drivePID.constants},
+      {"Heading PID Constants", &headingPID.constants},
+      {"Turn PID Constants", &turnPID.constants},
+      {"Swing Forward PID Constants", &forward_swingPID.constants},
+      {"Swing Backward PID Constants", &backward_swingPID.constants}}*/;
   void pid_tuner_print();
-  void pid_tuner_value_modify(double p, double i, double d, double start);
+  void pid_tuner_value_modify(float p, float i, float d, float start);
   void pid_tuner_value_increase();
   void pid_tuner_value_decrease();
   void pid_tuner_print_brain();
@@ -1320,16 +1352,22 @@ class Drive {
   void pid_tuner_brain_init();
   int column = 0;
   int row = 0;
-  int column_max = 0;
-  const int row_max = 3;
-  std::string name, kp, ki, kd, starti;
   std::string arrow = " <--\n";
-  std::string newline = "\n";
-  bool last_controller_curve_state;
-  bool last_auton_selector_state;
+  bool last_controller_curve_state = false;
+  bool last_auton_selector_state = false;
   bool pid_tuner_on = false;
-  std::string complete_pid_tuner_output;
-  double p_increment = 0.1, i_increment = 0.001, d_increment = 0.25, start_i_increment = 1.0;
+  std::string complete_pid_tuner_output = "";
+  float p_increment = 0.1, i_increment = 0.001, d_increment = 0.25, start_i_increment = 1.0;
+
+  // Odometry
+  float track_width = 0.0;
+  bool odometry_enabled = false;
+  double l_last = 0, r_last = 0 /*, c_last = 0*/;
+  /*double h = 0, h2 = 0*/;  // rad for big circle
+  double last_theta = 0;
+  // double Xx = 0, Yy = 0, Xy = 0, Yx = 0;
+  double encoder_angle_rad = 0;
+  bool turn_with_encoder = false;
 
   /**
    * Private wait until for drive

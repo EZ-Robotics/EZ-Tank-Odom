@@ -15,11 +15,11 @@ std::vector<int> right_motors = {16, 6, 7, 8};
 ez::Drive chassis (
   // Left Chassis Ports (negative port will reverse it!)
   //   the first port is used as the sensor
-  {-2, -1, -11, -15}
+  left_motors
 
   // Right Chassis Ports (negative port will reverse it!)
   //   the first port is used as the sensor
-  ,{16, 6, 7, 8}
+  ,right_motors
 
   // IMU Port
   ,21
@@ -71,6 +71,8 @@ void initialize() {
   ez::ez_template_print();
   
   pros::delay(500); // Stop the user from doing anything while legacy ports configure
+
+  chassis.drive_width_set(8.93);
 
   // Configure your chassis controls
   chassis.opcontrol_curve_buttons_toggle(true); // Enables modifying the controller curve with buttons on the joysticks
@@ -149,9 +151,14 @@ void autonomous() {
   chassis.drive_imu_reset(); // Reset gyro position to 0
   chassis.drive_sensor_reset(); // Reset drive sensors to 0
   chassis.drive_brake_set(MOTOR_BRAKE_HOLD); // Set motors to hold.  This helps autonomous consistency
+  chassis.odom_pose_set({0, 0, 0});
 
   // ez::as::auton_selector.selected_auton_call(); // Calls selected auton from autonomous selector
+  
+  chassis.drive_odom_enable(true);
   display.auton_call();
+  pros::delay(1000);
+  chassis.drive_odom_enable(false);
 }
 
 
@@ -172,7 +179,7 @@ void autonomous() {
 void opcontrol() {
   // This is preference to what you like to drive on
   chassis.drive_brake_set(MOTOR_BRAKE_COAST);
-  
+
   while (true) {
     
     // PID Tuner

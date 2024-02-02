@@ -71,6 +71,12 @@ enum e_mode { DISABLE = 0,
               TURN = 2,
               DRIVE = 3 };
 
+typedef struct pose {
+  double x;
+  double y;
+  double theta;
+} pose;
+
 /**
  * Outputs string for exit_condition enum.
  */
@@ -103,5 +109,9 @@ const bool SD_CARD_ACTIVE = pros::usd::is_installed();
  * Delay time for tasks
  */
 const int DELAY_TIME = 10;
+
+double to_deg(double input);
+double to_rad(double input);
+
 }  // namespace util
 }  // namespace ez
