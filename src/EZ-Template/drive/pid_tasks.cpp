@@ -15,12 +15,23 @@ void Drive::ez_auto_task() {
   while (true) {
     if (timer >= ez::util::DELAY_TIME) {
       // Autonomous PID
-      if (drive_mode_get() == DRIVE)
-        drive_pid_task();
-      else if (drive_mode_get() == TURN || drive_mode_get() == TURN_TO_POINT)
-        turn_pid_task();
-      else if (drive_mode_get() == SWING)
-        swing_pid_task();
+      switch (drive_mode_get()) {
+        case DRIVE:
+          drive_pid_task();
+          break;
+        case TURN ... TURN_TO_POINT:
+          turn_pid_task();
+          break;
+        case SWING:
+          swing_pid_task();
+          break;
+        case POINT_TO_POINT:
+          ptp_task();
+        case DISABLE:
+          break;
+        default:
+          break;
+      }
 
       util::AUTON_RAN = drive_mode_get() != DISABLE ? true : false;
 
@@ -140,4 +151,107 @@ void Drive::swing_pid_task() {
       private_drive_set(opposite_output, -swing_out);
     }
   }
+}
+
+int Drive::is_past_target() {
+  double distance_to_target = util::distance_to_point(odom_target, odom_current);
+  double fake_y = (odom_target.y - odom_current.y);
+  double new_y = fake_y * fabs(distance_to_target / fake_y);
+  return util::sgn(new_y);
+}
+
+std::vector<pose> Drive::find_point_to_face(bool set_global) {
+  double tx_cx = odom_target.x - odom_current.x;
+  double m = 0.0;
+  if (tx_cx != 0)
+    m = (odom_target.y - odom_current.y) / tx_cx;
+  double angle = (sin(util::to_rad(m)));
+  pose ptf1 = util::vector_off_point(24.0, {odom_target.x, odom_target.y, angle});
+  pose ptf2 = util::vector_off_point(24.0, {odom_target.x, odom_target.y, angle + 180});
+  if (set_global) {
+    double ptf1_dist = util::distance_to_point(ptf1, odom_current);
+    double ptf2_dist = util::distance_to_point(ptf2, odom_current);
+    if (ptf1_dist > ptf2_dist)
+      ptf1_running = true;
+    else
+      ptf1_running = false;
+  }
+  return {ptf1, ptf2};
+}
+
+// Odom To Point Task
+void Drive::ptp_task() {
+  // double b = odom_target.y - (m * odom_target.x);
+  pose point_to_face;
+  pose ptf1 = find_point_to_face()[0];
+  pose ptf2 = find_point_to_face()[1];
+
+  if (ptf1_running)
+    point_to_face = ptf1;
+  else
+    point_to_face = ptf2;
+
+  int add = current_turn_type == REV ? 180 : 0;
+  double a_target = util::absolute_angle_to_point(point_to_face, odom_current) + add;
+  headingPID.target_set(util::wrap_angle(a_target - drive_imu_get()));
+  headingPID.compute(0);
+
+  // Error for xy pid
+  double distance_to_target = util::distance_to_point(odom_target, odom_current);
+
+  // Check to see if we've passed target
+  double fake_y = odom_target.y - odom_current.y;
+  double new_y = 0.0;
+  if (fake_y != 0)
+    new_y = fake_y * fabs(distance_to_target / fake_y);
+  int dir = (current_turn_type == REV ? -1 : 1);           // If we're going backwards, add a -1
+  int flipped = is_past_target() != past_target ? -1 : 1;  // Check if we've flipped directions to what we started
+
+  // Compute xy PID
+  xyPID.target_set(distance_to_target * dir * flipped);
+  xyPID.compute(0);
+
+  // Force code to prioritize turning
+  double xy_out = xyPID.output * cos(util::to_rad(util::wrap_angle(a_target - drive_imu_get())));
+
+  // Clip gyroPID to max speed
+  double left_output = xy_out + headingPID.output;
+  double right_output = xy_out - headingPID.output;
+
+  // Vector scaling
+  double biggest = pid_speed_max_get();
+  if (fabs(left_output) > biggest || fabs(right_output) > biggest) {
+    if (fabs(left_output) > fabs(right_output)) {
+      right_output = right_output * (biggest / fabs(left_output));
+      left_output = util::clamp(left_output, biggest, -biggest);
+    } else {
+      left_output = left_output * (biggest / fabs(right_output));
+      right_output = util::clamp(right_output, biggest, -biggest);
+    }
+  }
+
+  printf("xy(%.2f, %.2f, %.2f)   xyPID: %.2f   aPID: %.2f     fakey: %.2f   dir: %i   sgn: %i\n", odom_current.x, odom_current.y, odom_current.theta, xyPID.target_get(), headingPID.target_get(), fake_y, dir, flipped);
+
+  // if (drive_toggle)
+  private_drive_set(left_output, right_output);
+  // private_drive_set(headingPID.output, -headingPID.output);
+
+  /*
+  pose i = util::vector_off_point(18, {0, 0, a_target + 90});
+  pose o = util::vector_off_point(18, {i.x, i.y, a_target});
+  double dot_product = (i.x * fake_current.x) + (i.y * fake_current.y) + (i.x * fake_current.x) + (i.y * fake_current.y);
+  // printf("i(%.2f, %.2f, %.2f)   o(%.2f, %.2f, %.2f)   cur(%.2f, %.2f, %.2f)      product:%.2f\n", i.x, i.y, i.theta, o.x, o.y, o.theta, fake_current.x, fake_current.y, fake_current.theta, dot_product);
+
+  pose b = util::vector_off_point(24, {odom_target.x, odom_target.y, a_target + 90});
+  pose a = util::vector_off_point(24, {odom_target.x, odom_target.y, a_target - 90});
+  pose c = odom_current;
+  int there = util::sgn(((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)));  // cross product to decide if above/below line
+
+  bool passed_target;
+  if (there == 1)
+    passed_target = current_turn_type == FWD ? true : false;
+  else if (there == -1)
+    passed_target = current_turn_type == REV ? true : false;
+  // printf("Passed Target: %i   There: %i      xy %.2f\n", passed_target, there, xyPID.target_get());
+*/
 }

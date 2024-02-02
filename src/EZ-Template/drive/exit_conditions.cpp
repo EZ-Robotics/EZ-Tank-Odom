@@ -42,6 +42,38 @@ void Drive::pid_turn_exit_condition_set(okapi::QTime p_small_exit_time, okapi::Q
   pid_turn_exit_condition_set(set, se, bet, be, vet, mAt);
 }
 
+void Drive::pid_odom_drive_exit_condition_set(int p_small_exit_time, double p_small_error, int p_big_exit_time, double p_big_error, int p_velocity_exit_time, int p_mA_timeout) {
+  xyPID.exit_condition_set(p_small_exit_time, p_small_error, p_big_exit_time, p_big_error, p_velocity_exit_time, p_mA_timeout);
+}
+
+void Drive::pid_odom_drive_exit_condition_set(okapi::QTime p_small_exit_time, okapi::QLength p_small_error, okapi::QTime p_big_exit_time, okapi::QLength p_big_error, okapi::QTime p_velocity_exit_time, okapi::QTime p_mA_timeout) {
+  // Convert okapi units to doubles
+  double se = p_small_error.convert(okapi::inch);
+  double be = p_big_error.convert(okapi::inch);
+  double set = p_small_exit_time.convert(okapi::millisecond);
+  double bet = p_big_exit_time.convert(okapi::millisecond);
+  double vet = p_velocity_exit_time.convert(okapi::millisecond);
+  double mAt = p_mA_timeout.convert(okapi::millisecond);
+
+  pid_odom_drive_exit_condition_set(set, se, bet, be, vet, mAt);
+}
+
+void Drive::pid_odom_turn_exit_condition_set(int p_small_exit_time, double p_small_error, int p_big_exit_time, double p_big_error, int p_velocity_exit_time, int p_mA_timeout) {
+  aPID.exit_condition_set(p_small_exit_time, p_small_error, p_big_exit_time, p_big_error, p_velocity_exit_time, p_mA_timeout);
+}
+
+void Drive::pid_odom_turn_exit_condition_set(okapi::QTime p_small_exit_time, okapi::QAngle p_small_error, okapi::QTime p_big_exit_time, okapi::QAngle p_big_error, okapi::QTime p_velocity_exit_time, okapi::QTime p_mA_timeout) {
+  // Convert okapi units to doubles
+  double se = p_small_error.convert(okapi::degree);
+  double be = p_big_error.convert(okapi::degree);
+  double set = p_small_exit_time.convert(okapi::millisecond);
+  double bet = p_big_exit_time.convert(okapi::millisecond);
+  double vet = p_velocity_exit_time.convert(okapi::millisecond);
+  double mAt = p_mA_timeout.convert(okapi::millisecond);
+
+  pid_odom_turn_exit_condition_set(set, se, bet, be, vet, mAt);
+}
+
 void Drive::pid_swing_exit_condition_set(int p_small_exit_time, double p_small_error, int p_big_exit_time, double p_big_error, int p_velocity_exit_time, int p_mA_timeout) {
   swingPID.exit_condition_set(p_small_exit_time, p_small_error, p_big_exit_time, p_big_error, p_velocity_exit_time, p_mA_timeout);
 }
@@ -74,6 +106,22 @@ void Drive::pid_wait() {
     if (print_toggle) std::cout << "  Left: " << exit_to_string(left_exit) << " Exit, error: " << leftPID.error << ".   Right: " << exit_to_string(right_exit) << " Exit, error: " << rightPID.error << ".\n";
 
     if (left_exit == mA_EXIT || left_exit == VELOCITY_EXIT || right_exit == mA_EXIT || right_exit == VELOCITY_EXIT) {
+      interfered = true;
+    }
+  }
+
+  // Point to Point Exit
+  if (mode == POINT_TO_POINT) {
+    exit_output xy_edit = RUNNING;
+    exit_output a_exit = RUNNING;
+    while (xy_edit == RUNNING || a_exit == RUNNING) {
+      xy_edit = xy_edit != RUNNING ? xy_edit : xyPID.exit_condition({left_motors[0], right_motors[0]});
+      a_exit = a_exit != RUNNING ? a_exit : aPID.exit_condition({left_motors[0], right_motors[0]});
+      pros::delay(util::DELAY_TIME);
+    }
+    if (print_toggle) std::cout << "  XY: " << exit_to_string(xy_edit) << " Exit, error: " << xyPID.error << ".   Angle: " << exit_to_string(a_exit) << " Exit, error: " << aPID.error << ".\n";
+
+    if (xy_edit == mA_EXIT || xy_edit == VELOCITY_EXIT || a_exit == mA_EXIT || a_exit == VELOCITY_EXIT) {
       interfered = true;
     }
   }

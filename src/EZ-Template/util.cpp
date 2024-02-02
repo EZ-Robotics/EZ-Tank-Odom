@@ -166,5 +166,29 @@ double wrap_angle(double theta) {
   return theta;
 }
 
+// Find shortest distance to point
+double distance_to_point(pose itarget, pose icurrent) {
+  // Difference in target to current (legs of triangle)
+  double x_error = (itarget.x - icurrent.x);
+  double y_error = (itarget.y - icurrent.y);
+
+  // Hypotenuse of triangle
+  double distance = hypot(x_error, y_error);
+
+  return distance;
+}
+
+// Uses input as hypot to find the new xy
+pose vector_off_point(double added, pose icurrent) {
+  double x_error = sin(to_rad(icurrent.theta)) * added;
+  double y_error = cos(to_rad(icurrent.theta)) * added;
+
+  pose output;
+  output.x = x_error + icurrent.x;
+  output.y = y_error + icurrent.y;
+  output.theta = icurrent.theta;
+  return output;
+}
+
 }  // namespace util
 }  // namespace ez

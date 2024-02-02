@@ -1,3 +1,9 @@
+/*
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
 #include "EZ-Template/drive/drive.hpp"
 
 using namespace ez;
@@ -80,9 +86,9 @@ void Drive::ez_tracking_task() {
 
   odom_current.x += (/*Xx +*/ Yx);
   odom_current.y += (/*Xy +*/ Yy);
-  angle_rad = util::to_rad(current_global_theta); // angle_rad += theta;
+  angle_rad += theta;  // angle_rad += theta;
   encoder_angle_rad += encoder_theta;
-  odom_current.theta = util::to_deg(angle_rad);
+  odom_current.theta = util::to_deg(angle_rad);  // drive_imu_get();
 
   // pros::delay(1);
   // }

@@ -91,6 +91,8 @@ class Drive {
   PID forward_drivePID;
   PID leftPID;
   PID rightPID;
+  PID xyPID;
+  PID aPID;
   PID backward_drivePID;
   PID swingPID;
   PID forward_swingPID;
@@ -351,6 +353,9 @@ class Drive {
   void pid_turn_encoder(bool input);
   void pid_turn_set(pose itarget, turn_types dir, int speed, bool slew_on = false);
   pose turn_to_point_target = {0, 0, 0};
+  void pid_odom_ptp_set(odom imovement, bool slew_on);
+  int is_past_target();
+  int past_target = 0;
 
   /////
   //
@@ -1166,6 +1171,38 @@ class Drive {
    * Set's constants for drive exit conditions.
    *
    * \param p_small_exit_time
+   *        Sets small_exit_time.  Timer for to exit within smalL_error.  In okapi units.
+   * \param p_small_error
+   *        Sets smalL_error. Timer will start when error is within this.  In okapi units.
+   * \param p_big_exit_time
+   *        Sets big_exit_time.  Timer for to exit within big_error.  In okapi units.
+   * \param p_big_error
+   *        Sets big_error. Timer will start when error is within this.  In okapi units.
+   * \param p_velocity_exit_time
+   *        Sets velocity_exit_time.  Timer will start when velocity is 0.  In okapi units.
+   */
+  void pid_odom_drive_exit_condition_set(okapi::QTime p_small_exit_time, okapi::QLength p_small_error, okapi::QTime p_big_exit_time, okapi::QLength p_big_error, okapi::QTime p_velocity_exit_time, okapi::QTime p_mA_timeout);
+
+  /**
+   * Set's constants for turn exit conditions.
+   *
+   * \param p_small_exit_time
+   *        Sets small_exit_time.  Timer for to exit within smalL_error.  In okapi units.
+   * \param p_small_error
+   *        Sets smalL_error. Timer will start when error is within this.  In okapi units.
+   * \param p_big_exit_time
+   *        Sets big_exit_time.  Timer for to exit within big_error.  In okapi units.
+   * \param p_big_error
+   *        Sets big_error. Timer will start when error is within this.  In okapi units.
+   * \param p_velocity_exit_time
+   *        Sets velocity_exit_time.  Timer will start when velocity is 0.  In okapi units.
+   */
+  void pid_odom_turn_exit_condition_set(okapi::QTime p_small_exit_time, okapi::QAngle p_small_error, okapi::QTime p_big_exit_time, okapi::QAngle p_big_error, okapi::QTime p_velocity_exit_time, okapi::QTime p_mA_timeout);
+
+  /**
+   * Set's constants for drive exit conditions.
+   *
+   * \param p_small_exit_time
    *        Sets small_exit_time.  Timer for to exit within smalL_error.
    * \param p_small_error
    *        Sets smalL_error. Timer will start when error is within this.
@@ -1193,6 +1230,38 @@ class Drive {
    *        Sets velocity_exit_time.  Timer will start when velocity is 0.
    */
   void pid_turn_exit_condition_set(int p_small_exit_time, double p_small_error, int p_big_exit_time, double p_big_error, int p_velocity_exit_time, int p_mA_timeout);
+
+  /**
+   * Set's constants for drive exit conditions.
+   *
+   * \param p_small_exit_time
+   *        Sets small_exit_time.  Timer for to exit within smalL_error.
+   * \param p_small_error
+   *        Sets smalL_error. Timer will start when error is within this.
+   * \param p_big_exit_time
+   *        Sets big_exit_time.  Timer for to exit within big_error.
+   * \param p_big_error
+   *        Sets big_error. Timer will start when error is within this.
+   * \param p_velocity_exit_time
+   *        Sets velocity_exit_time.  Timer will start when velocity is 0.
+   */
+  void pid_odom_drive_exit_condition_set(int p_small_exit_time, double p_small_error, int p_big_exit_time, double p_big_error, int p_velocity_exit_time, int p_mA_timeout);
+
+  /**
+   * Set's constants for turn exit conditions.
+   *
+   * \param p_small_exit_time
+   *        Sets small_exit_time.  Timer for to exit within smalL_error.
+   * \param p_small_error
+   *        Sets smalL_error. Timer will start when error is within this.
+   * \param p_big_exit_time
+   *        Sets big_exit_time.  Timer for to exit within big_error.
+   * \param p_big_error
+   *        Sets big_error. Timer will start when error is within this.
+   * \param p_velocity_exit_time
+   *        Sets velocity_exit_time.  Timer will start when velocity is 0.
+   */
+  void pid_odom_turn_exit_condition_set(int p_small_exit_time, double p_small_error, int p_big_exit_time, double p_big_error, int p_velocity_exit_time, int p_mA_timeout);
 
   /**
    * Set's constants for swing exit conditions.
@@ -1374,6 +1443,8 @@ class Drive {
   double encoder_angle_rad = 0;
   bool turn_with_encoder = false;
   turn_types current_turn_type = fwd;
+  bool ptf1_running = false;
+  std::vector<pose> find_point_to_face(bool set_global = false);
 
   /**
    * Private wait until for drive
@@ -1428,6 +1499,7 @@ class Drive {
   void drive_pid_task();
   void swing_pid_task();
   void turn_pid_task();
+  void ptp_task();
   void ez_auto_task();
 
   /**

@@ -159,10 +159,10 @@ void autonomous() {
   
   
   // display.auton_call();
-  chassis.pid_turn_set({12, 12}, rev, 90);
+  chassis.pid_odom_ptp_set({{0, 18}, fwd, 110}, false);
   chassis.pid_wait();
 
-  chassis.pid_turn_set({-12, 12}, rev, 90);
+  chassis.pid_odom_ptp_set({{0, 0}, rev, 110}, false);
   chassis.pid_wait();
 }
 
