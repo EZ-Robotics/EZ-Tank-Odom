@@ -339,8 +339,8 @@ class Drive {
   void drive_width_set(double input);
   void drive_odom_enable(bool input);
   double drive_width_get();
-  pose odom_target;
-  pose odom_current;
+  pose odom_target = {0, 0, 0};
+  pose odom_current = {0, 0, 0};
   void odom_pose_x_set(double x);
   void odom_pose_y_set(double y);
   void odom_pose_set(pose itarget);
@@ -349,6 +349,8 @@ class Drive {
   bool imu_calibration_complete = false;
   double angle_rad = 0.0;
   void pid_turn_encoder(bool input);
+  void pid_turn_set(pose itarget, turn_types dir, int speed, bool slew_on = false);
+  pose turn_to_point_target = {0, 0, 0};
 
   /////
   //
@@ -1371,6 +1373,7 @@ class Drive {
   // double Xx = 0, Yy = 0, Xy = 0, Yx = 0;
   double encoder_angle_rad = 0;
   bool turn_with_encoder = false;
+  turn_types current_turn_type = fwd;
 
   /**
    * Private wait until for drive

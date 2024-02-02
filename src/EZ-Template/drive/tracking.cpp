@@ -37,7 +37,7 @@ void Drive::ez_tracking_task() {
   }
   // pros::delay(3000);
   // while (true) {
-  printf("x: %.2f   y: %.2f   a: %.2f\n", odom_current.x, odom_current.y, odom_current.theta);
+  // printf("x: %.2f   y: %.2f   a: %.2f\n", odom_current.x, odom_current.y, odom_current.theta);
 
   float l_current = drive_sensor_left();
   float r_current = drive_sensor_right();
@@ -83,7 +83,7 @@ void Drive::ez_tracking_task() {
   angle_rad = util::to_rad(current_global_theta); // angle_rad += theta;
   encoder_angle_rad += encoder_theta;
   odom_current.theta = util::to_deg(angle_rad);
-  
+
   // pros::delay(1);
   // }
 }

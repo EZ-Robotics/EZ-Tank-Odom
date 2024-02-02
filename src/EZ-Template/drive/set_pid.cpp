@@ -194,8 +194,6 @@ void Drive::pid_turn_set(double target, int speed, bool slew_on) {
   // Initialize slew
   slew_turn.initialize(slew_on, max_speed, target, drive_imu_get());
 
-  printf("%.2f   %.2f\n\n", slew_turn.constants.distance_to_travel, slew_turn.constants.min_speed);
-
   // Run task
   drive_mode_set(TURN);
 }
@@ -218,6 +216,21 @@ void Drive::pid_turn_relative_set(double target, int speed, bool slew_on) {
   double absolute_target = headingPID.target_get() + target;
   if (print_toggle) printf("Relative ");
   pid_turn_set(absolute_target, speed, slew_on);
+}
+
+// Set turn PID to point
+void Drive::pid_turn_set(pose itarget, turn_types dir, int speed, bool slew_on) {
+  current_turn_type = dir;
+  turn_to_point_target = itarget;
+
+  int add = current_turn_type == REV ? 180 : 0;
+  odom_target.theta = util::absolute_angle_to_point(turn_to_point_target, odom_current) + add;
+  double target = util::wrap_angle(odom_target.theta - drive_imu_get()) + drive_imu_get();
+
+  if (print_toggle) printf("Turn to Point PID Started... Target Point: (%f, %f) \n", itarget.x, itarget.y);
+  pid_turn_set(target, speed, slew_on);
+
+  drive_mode_set(TURN_TO_POINT);
 }
 
 // Raw Set Swing PID

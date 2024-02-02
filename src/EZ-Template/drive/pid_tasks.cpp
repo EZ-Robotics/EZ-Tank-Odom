@@ -17,7 +17,7 @@ void Drive::ez_auto_task() {
       // Autonomous PID
       if (drive_mode_get() == DRIVE)
         drive_pid_task();
-      else if (drive_mode_get() == TURN)
+      else if (drive_mode_get() == TURN || drive_mode_get() == TURN_TO_POINT)
         turn_pid_task();
       else if (drive_mode_get() == SWING)
         swing_pid_task();
@@ -76,7 +76,19 @@ void Drive::drive_pid_task() {
 // Turn PID task
 void Drive::turn_pid_task() {
   // Compute PID
-  turnPID.compute(drive_imu_get());
+  // turnPID.compute(drive_imu_get());
+
+  // Compute PID if it's a normal turn
+  if (mode == TURN) {
+    turnPID.compute(drive_imu_get());
+  }
+  // Compute PID if we're turning to point
+  else {
+    int add = current_turn_type == REV ? 180 : 0;
+    double a_target = util::absolute_angle_to_point(turn_to_point_target, odom_current) + add;
+    turnPID.target_set(util::wrap_angle(a_target - drive_imu_get()));
+    turnPID.compute(0);
+  }
 
   // Compute slew
   slew_turn.iterate(drive_imu_get());

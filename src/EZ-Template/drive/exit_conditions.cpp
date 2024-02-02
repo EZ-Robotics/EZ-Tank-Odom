@@ -79,7 +79,7 @@ void Drive::pid_wait() {
   }
 
   // Turn Exit
-  else if (mode == TURN) {
+  else if (mode == TURN || mode == TURN_TO_POINT) {
     exit_output turn_exit = RUNNING;
     while (turn_exit == RUNNING) {
       turn_exit = turn_exit != RUNNING ? turn_exit : turnPID.exit_condition({left_motors[0], right_motors[0]});
@@ -160,7 +160,7 @@ void Drive::wait_until_drive(double target) {
 // Function to wait until a certain position is reached.  Wrapper for exit condition.
 void Drive::wait_until_turn_swing(double target) {
   // Make sure mode is correct
-  if (!(mode == TURN || mode == SWING)) {
+  if (!(mode == TURN || mode == TURN_TO_POINT || mode == SWING)) {
     printf("Mode needs to be swing or turn!\n");
     return;
   }
@@ -178,7 +178,7 @@ void Drive::wait_until_turn_swing(double target) {
     g_error = target - drive_imu_get();
 
     // If turning...
-    if (mode == TURN) {
+    if (mode == TURN || mode == TURN_TO_POINT) {
       // Before robot has reached target, use the exit conditions to avoid getting stuck in this while loop
       if (util::sgn(g_error) == g_sgn) {
         if (turn_exit == RUNNING) {
@@ -238,7 +238,7 @@ void Drive::pid_wait_until(okapi::QLength target) {
 
 void Drive::pid_wait_until(okapi::QAngle target) {
   // If robot is driving...
-  if (mode == TURN || mode == SWING) {
+  if (mode == TURN || mode == TURN_TO_POINT || mode == SWING) {
     wait_until_turn_swing(target.convert(okapi::degree));
   } else {
     printf("QAngle not supported for drive!\n");
@@ -251,7 +251,7 @@ void Drive::pid_wait_until(double target) {
     wait_until_drive(target);
   }
   // If turning or swinging...
-  else if (mode == TURN || mode == SWING) {
+  else if (mode == TURN || mode == TURN_TO_POINT || mode == SWING) {
     wait_until_turn_swing(target);
   } else {
     printf("Not in a valid drive mode!\n");

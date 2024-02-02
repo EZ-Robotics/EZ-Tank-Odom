@@ -148,5 +148,23 @@ double clamp(double input, double max, double min) {
 double to_deg(double input) { return input * (180 / M_PI); }
 double to_rad(double input) { return input * (M_PI / 180); }
 
+// Finds error in shortest angle to point
+double absolute_angle_to_point(pose itarget, pose icurrent) {
+  // Difference in target to current (legs of triangle)
+  double x_error = itarget.x - icurrent.x;
+  double y_error = itarget.y - icurrent.y;
+
+  // Displacement of error
+  double error = to_deg(atan2(x_error, y_error));
+  return error;
+}
+
+// Outputs angle within 180 t0 -180
+double wrap_angle(double theta) {
+  while (theta > 180) theta -= 360;
+  while (theta < -180) theta += 360;
+  return theta;
+}
+
 }  // namespace util
 }  // namespace ez

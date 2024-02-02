@@ -153,13 +153,17 @@ void autonomous() {
   chassis.drive_sensor_reset(); // Reset drive sensors to 0
   chassis.drive_brake_set(MOTOR_BRAKE_HOLD); // Set motors to hold.  This helps autonomous consistency
   chassis.odom_pose_set({0, 0, 0});
+  chassis.drive_odom_enable(true);
 
   // ez::as::auton_selector.selected_auton_call(); // Calls selected auton from autonomous selector
   
-  chassis.drive_odom_enable(true);
-  display.auton_call();
-  pros::delay(1000);
-  chassis.drive_odom_enable(false);
+  
+  // display.auton_call();
+  chassis.pid_turn_set({12, 12}, rev, 90);
+  chassis.pid_wait();
+
+  chassis.pid_turn_set({-12, 12}, rev, 90);
+  chassis.pid_wait();
 }
 
 
@@ -180,7 +184,7 @@ void autonomous() {
 void opcontrol() {
   // This is preference to what you like to drive on
   chassis.drive_brake_set(MOTOR_BRAKE_COAST);
-
+  chassis.drive_odom_enable(false);
   while (true) {
     
     // PID Tuner
@@ -197,8 +201,10 @@ void opcontrol() {
       }
         
       // Trigger the selected autonomous routine
-      if (master.get_digital_new_press(DIGITAL_B)) 
+      if (master.get_digital_new_press(DIGITAL_B)) {
         autonomous();
+        chassis.drive_odom_enable(false);
+      }
 
       chassis.pid_tuner_iterate(); // Allow PID Tuner to iterate
     } 

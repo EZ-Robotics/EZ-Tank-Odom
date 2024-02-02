@@ -69,7 +69,17 @@ enum exit_output { RUNNING = 1,
 enum e_mode { DISABLE = 0,
               SWING = 1,
               TURN = 2,
-              DRIVE = 3 };
+              TURN_TO_POINT = 3,
+              DRIVE = 4 };
+
+/**
+ * Enum for turn types
+ */
+enum turn_types { FWD = 0,
+                  fwd = FWD,
+                  REV = 1,
+                  rev = REV,
+};
 
 typedef struct pose {
   double x;
@@ -112,6 +122,8 @@ const int DELAY_TIME = 10;
 
 double to_deg(double input);
 double to_rad(double input);
+double absolute_angle_to_point(pose itarget, pose icurrent);
+double wrap_angle(double theta);
 
 }  // namespace util
 }  // namespace ez
