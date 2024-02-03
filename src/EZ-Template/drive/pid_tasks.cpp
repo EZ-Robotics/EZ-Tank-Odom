@@ -164,11 +164,13 @@ void Drive::ptp_task() {
   double distance_to_target = util::distance_to_point(odom_target, odom_current);
 
   // Check to see if we've passed target
+  /*
   double fake_y = odom_target.y - odom_current.y;
   double new_y = 0.0;
   if (fake_y != 0)
     new_y = fake_y * fabs(distance_to_target / fake_y);
-  int dir = (current_turn_type == REV ? -1 : 1);           // If we're going backwards, add a -1
+  */
+  int dir = (current_turn_type == REV ? -1 : 1);  // If we're going backwards, add a -1
   int flipped = is_past_target() != past_target ? -1 : 1;  // Check if we've flipped directions to what we started
 
   // Compute xy PID
@@ -185,7 +187,7 @@ void Drive::ptp_task() {
   // Compute slew
   slew_left.iterate(drive_sensor_left());
   slew_right.iterate(drive_sensor_right());
-  printf("left: %.2f   right: %.2f\n", slew_left.output(), slew_right.output());
+  // printf("left: %.2f   right: %.2f\n", slew_left.output(), slew_right.output());
 
   // Vector scaling
   double biggest = fmin(slew_left.output(), slew_right.output());
@@ -199,7 +201,7 @@ void Drive::ptp_task() {
     }
   }
 
-  // printf("xy(%.2f, %.2f, %.2f)   xyPID: %.2f   aPID: %.2f     fakey: %.2f   dir: %i   sgn: %i\n", odom_current.x, odom_current.y, odom_current.theta, xyPID.target_get(), headingPID.target_get(), fake_y, dir, flipped);
+  printf("xy(%.2f, %.2f, %.2f)   xyPID: %.2f   aPID: %.2f     dir: %i   sgn: %i\n", odom_current.x, odom_current.y, odom_current.theta, xyPID.target_get(), headingPID.target_get(), dir, flipped);
 
   if (drive_toggle)
     private_drive_set(left_output, right_output);

@@ -133,7 +133,7 @@ int Drive::pid_swing_min_get() { return swing_min; }
 void Drive::pid_drive_set(double target, int speed, bool slew_on, bool toggle_heading) {
   if (odometry_enabled) {
     pose ptarget = util::vector_off_point(target, odom_target);
-    turn_types dir = util::sgn(target) == 1? fwd : rev;
+    turn_types dir = util::sgn(target) == 1 ? fwd : rev;
     pid_odom_ptp_set({ptarget, dir, speed}, slew_on);
     return;
   }
@@ -308,7 +308,9 @@ void Drive::pid_swing_relative_set(e_swing type, double target, int speed, int o
 int Drive::is_past_target() {
   double distance_to_target = util::distance_to_point(odom_target, odom_current);
   double fake_y = (odom_target.y - odom_current.y);
-  double new_y = fake_y * fabs(distance_to_target / fake_y);
+  double new_y = 0.0;
+  if (fake_y != 0)
+    new_y = fake_y * fabs(distance_to_target / fake_y);
   return util::sgn(new_y);
 }
 
@@ -317,7 +319,7 @@ std::vector<pose> Drive::find_point_to_face(pose current, pose target, bool set_
   double m = 0.0;
   if (tx_cx != 0)
     m = (target.y - current.y) / tx_cx;
-  double angle = util::to_deg(m);
+  double angle = 90.0 - util::to_deg(atan(m));
   pose ptf1 = util::vector_off_point(24.0, {target.x, target.y, angle});
   pose ptf2 = util::vector_off_point(24.0, {target.x, target.y, angle + 180});
 
@@ -331,6 +333,10 @@ std::vector<pose> Drive::find_point_to_face(pose current, pose target, bool set_
     }
   }
   printf("\n");
+  point_to_face = {ptf1, ptf2};
+
+  printf("pft1(%.2f, %.2f, %.2f)   ptf2(%.2f, %.2f, %.2f)      angle: %.2f   y2-y1: %.2f   x2-x1: %.2f\n", point_to_face[0].x, point_to_face[0].y, point_to_face[0].theta, point_to_face[1].x, point_to_face[1].y, point_to_face[1].theta, angle, (target.y - current.y), tx_cx);
+
   return {ptf1, ptf2};
 }
 
@@ -370,7 +376,7 @@ void Drive::pid_odom_ptp_set(odom imovement, bool slew_on) {
   // Change constants if we're going fwd or rev
   PID::Constants pid_consts;
   slew::Constants slew_consts;
-  PID::Constants angle_consts = turnPID.constants_get();
+  PID::Constants angle_consts = headingPID.constants_get();
   if (imovement.turn_type == REV) {
     pid_consts = backward_drivePID.constants_get();
     slew_consts = slew_backward.constants_get();

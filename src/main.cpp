@@ -156,7 +156,9 @@ void autonomous() {
   chassis.drive_odom_enable(true);
 
   // ez::as::auton_selector.selected_auton_call(); // Calls selected auton from autonomous selector
-  display.auton_call();
+  //display.auton_call();
+  chassis.pid_odom_ptp_set({{12, 24}, fwd, 110}, true);
+  chassis.pid_wait();
 }
 
 
