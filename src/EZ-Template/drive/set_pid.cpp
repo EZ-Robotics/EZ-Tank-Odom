@@ -134,7 +134,7 @@ void Drive::pid_drive_set(double target, int speed, bool slew_on, bool toggle_he
   if (odometry_enabled) {
     pose ptarget = util::vector_off_point(target, odom_target);
     turn_types dir = util::sgn(target) == 1 ? fwd : rev;
-    pid_odom_ptp_set({ptarget, dir, speed}, slew_on);
+    pid_odom_injected_pp_set({{ptarget, dir, speed}}, slew_on);
     return;
   }
 
@@ -171,6 +171,10 @@ void Drive::pid_drive_set(double target, int speed, bool slew_on, bool toggle_he
   rightPID.constants_set(pid_consts.kp, pid_consts.ki, pid_consts.kd, pid_consts.start_i);
   slew_left.constants_set(slew_consts.distance_to_travel, slew_consts.min_speed);
   slew_right.constants_set(slew_consts.distance_to_travel, slew_consts.min_speed);
+
+  // Set exit conditions
+  leftPID.exit = forward_drivePID.exit;
+  rightPID.exit = forward_drivePID.exit;
 
   // Set PID targets
   leftPID.target_set(l_target_encoder);
@@ -305,41 +309,6 @@ void Drive::pid_swing_relative_set(e_swing type, double target, int speed, int o
 // Odom Stuff
 /////
 
-int Drive::is_past_target() {
-  double distance_to_target = util::distance_to_point(odom_target, odom_current);
-  double fake_y = (odom_target.y - odom_current.y);
-  double new_y = 0.0;
-  if (fake_y != 0)
-    new_y = fake_y * fabs(distance_to_target / fake_y);
-  return util::sgn(new_y);
-}
-
-std::vector<pose> Drive::find_point_to_face(pose current, pose target, bool set_global) {
-  double tx_cx = target.x - current.x;
-  double m = 0.0;
-  if (tx_cx != 0)
-    m = (target.y - current.y) / tx_cx;
-  double angle = 90.0 - util::to_deg(atan(m));
-  pose ptf1 = util::vector_off_point(24.0, {target.x, target.y, angle});
-  pose ptf2 = util::vector_off_point(24.0, {target.x, target.y, angle + 180});
-
-  if (set_global) {
-    double ptf1_dist = util::distance_to_point(ptf1, current);
-    double ptf2_dist = util::distance_to_point(ptf2, current);
-    if (ptf1_dist > ptf2_dist) {
-      ptf1_running = true;
-    } else {
-      ptf1_running = false;
-    }
-  }
-  printf("\n");
-  point_to_face = {ptf1, ptf2};
-
-  printf("pft1(%.2f, %.2f, %.2f)   ptf2(%.2f, %.2f, %.2f)      angle: %.2f   y2-y1: %.2f   x2-x1: %.2f\n", point_to_face[0].x, point_to_face[0].y, point_to_face[0].theta, point_to_face[1].x, point_to_face[1].y, point_to_face[1].theta, angle, (target.y - current.y), tx_cx);
-
-  return {ptf1, ptf2};
-}
-
 // Set turn PID to point
 void Drive::pid_turn_set(pose itarget, turn_types dir, int speed, bool slew_on) {
   current_turn_type = dir;
@@ -354,8 +323,8 @@ void Drive::pid_turn_set(pose itarget, turn_types dir, int speed, bool slew_on) 
   drive_mode_set(TURN_TO_POINT);
 }
 
-// Move to point
-void Drive::pid_odom_ptp_set(odom imovement, bool slew_on) {
+// Raw move to point
+void Drive::raw_pid_odom_ptp_set(odom imovement, bool slew_on) {
   // Update current turn type
   current_turn_type = imovement.turn_type;
 
@@ -392,16 +361,90 @@ void Drive::pid_odom_ptp_set(odom imovement, bool slew_on) {
   slew_left.constants_set(slew_consts.distance_to_travel, slew_consts.min_speed);
   slew_right.constants_set(slew_consts.distance_to_travel, slew_consts.min_speed);
 
-  if (print_toggle) printf("Odom Motion Started... Target Coordinates: (%f, %f, %f) \n", imovement.target.x, imovement.target.y, imovement.target.theta);
+  if (print_toggle) {
+    if (mode == PURE_PURSUIT) {
+      printf(" ");
+    }
+    printf("Odom Motion Started... Target Coordinates: (%f, %f, %f) \n", imovement.target.x, imovement.target.y, imovement.target.theta);
+  }
 
   // Get the starting point for if we're positive or negative.  This is used to find if we've past target
-  past_target = is_past_target();
+  past_target = util::sgn(is_past_target(odom_target, odom_current));
 
   // Initialize slew
   int dir = (current_turn_type == REV ? -1 : 1);  // If we're going backwards, add a -1
   double dist_to_target = util::distance_to_point(odom_target, odom_current) * dir;
-  slew_left.initialize(slew_on, max_speed, dist_to_target + drive_sensor_left(), drive_sensor_left());
-  slew_right.initialize(slew_on, max_speed, dist_to_target + drive_sensor_right(), drive_sensor_right());
+  dist_to_target = dist_to_target < slew_consts.distance_to_travel && mode == PURE_PURSUIT ? slew_consts.distance_to_travel : dist_to_target;
+  slew_left.initialize(slew_on, max_speed, dist_to_target + l_start, l_start);
+  slew_right.initialize(slew_on, max_speed, dist_to_target + r_start, r_start);
 
+  // This is used for wait_until
+  leftPID.target_set(l_start + dist_to_target);
+  rightPID.target_set(l_start + dist_to_target);
+  leftPID.exit = xyPID.exit;
+  rightPID.exit = xyPID.exit;
+}
+
+// Move to point
+void Drive::pid_odom_ptp_set(odom imovement, bool slew_on) {
+  // This is used for wait_until
+  l_start = drive_sensor_left();
+  r_start = drive_sensor_right();
+
+  raw_pid_odom_ptp_set(imovement, slew_on);
   drive_mode_set(POINT_TO_POINT);
+}
+
+// Raw pure pursuit
+void Drive::raw_pid_odom_pp_set(std::vector<odom> imovements, bool slew_on) {
+  // Clear current list of targets
+  pp_movements.clear();
+  pp_index = 0;
+
+  // Set new target
+  pp_movements = imovements;
+
+  raw_pid_odom_ptp_set(pp_movements[pp_index], slew_on);
+
+  // This is used for wait_until
+  l_start = drive_sensor_left();
+  r_start = drive_sensor_right();
+
+  drive_mode_set(PURE_PURSUIT);
+}
+
+// Pure pursuit
+void Drive::pid_odom_pp_set(std::vector<odom> imovements, bool slew_on) {
+  // This is used for pid_wait_until_pp()
+  injected_pp_index.clear();
+  for (int i = 0; i < imovements.size(); i++) {
+    injected_pp_index.push_back(i);
+  }
+
+  if (print_toggle) printf("Pure Pursuit ");
+  raw_pid_odom_pp_set(imovements, slew_on);
+}
+
+// Smooth injected pure pursuit
+void Drive::pid_odom_injected_pp_set(std::vector<ez::odom> imovements, bool slew_on) {
+  // This is used for pid_wait_until_pp()
+  injected_pp_index.clear();
+  for (int i = 0; i < imovements.size(); i++) {
+    injected_pp_index.push_back(i);
+  }
+
+  if (print_toggle) printf("Injected ");
+  raw_pid_odom_pp_set(inject_points(imovements), slew_on);
+}
+
+// Smooth injected pure pursuit
+void Drive::pid_odom_smooth_pp_set(std::vector<odom> imovements, bool slew_on) {
+  // This is used for pid_wait_until_pp()
+  injected_pp_index.clear();
+  for (int i = 0; i < imovements.size(); i++) {
+    injected_pp_index.push_back(i);
+  }
+
+  if (print_toggle) printf("Smooth Injected ");
+  raw_pid_odom_pp_set(smooth_path(inject_points(imovements), 0.75, 0.03, 0.0001), slew_on);
 }

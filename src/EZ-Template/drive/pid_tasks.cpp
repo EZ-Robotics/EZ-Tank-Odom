@@ -27,6 +27,10 @@ void Drive::ez_auto_task() {
           break;
         case POINT_TO_POINT:
           ptp_task();
+          break;
+        case PURE_PURSUIT:
+          pp_task();
+          break;
         case DISABLE:
           break;
         default:
@@ -155,54 +159,67 @@ void Drive::swing_pid_task() {
 
 // Odom To Point Task
 void Drive::ptp_task() {
-  int add = current_turn_type == REV ? 180 : 0;
-  double a_target = util::absolute_angle_to_point(point_to_face[!ptf1_running], odom_current) + add;
-  headingPID.target_set(util::wrap_angle(a_target - drive_imu_get()));
-  headingPID.compute(0);
+  // Compute angle
+  int add = current_turn_type == REV ? 180 : 0;                                                       // Decide if going fwd or rev
+  double a_target = util::absolute_angle_to_point(point_to_face[!ptf1_running], odom_current) + add;  // Calculate the point for angle to face
+  aPID.target_set(util::wrap_angle(a_target - drive_imu_get()));                                      // Constrain error to -180 to 180
+  aPID.compute(0);
 
-  // Error for xy pid
-  double distance_to_target = util::distance_to_point(odom_target, odom_current);
-
-  // Check to see if we've passed target
-  /*
-  double fake_y = odom_target.y - odom_current.y;
-  double new_y = 0.0;
-  if (fake_y != 0)
-    new_y = fake_y * fabs(distance_to_target / fake_y);
-  */
-  int dir = (current_turn_type == REV ? -1 : 1);  // If we're going backwards, add a -1
-  int flipped = is_past_target() != past_target ? -1 : 1;  // Check if we've flipped directions to what we started
+  // Decide if we've past the target or not
+  int dir = (current_turn_type == REV ? -1 : 1);                                                          // If we're going backwards, add a -1
+  int flipped = util::sgn(is_past_target(odom_target, odom_current)) != util::sgn(past_target) ? -1 : 1;  // Check if we've flipped directions to what we started
 
   // Compute xy PID
-  xyPID.target_set(distance_to_target * dir * flipped);
+  double temp_target = fabs(is_past_target(odom_target, odom_current));  // Use this instead of distance formula to fix impossible movements
+  xyPID.target_set(temp_target * dir * flipped);
   xyPID.compute(0);
 
-  // Force code to prioritize turning
-  double xy_out = xyPID.output * cos(util::to_rad(util::wrap_angle(a_target - drive_imu_get())));
+  // Prioritize turning by scaling xy_out down
+  double cos_scale = cos(util::to_rad(aPID.target_get()));
+  double xy_out = xyPID.output * cos_scale;
 
-  // Clip gyroPID to max speed
-  double left_output = xy_out + headingPID.output;
-  double right_output = xy_out - headingPID.output;
+  // Raw outputs
+  double l_out = xy_out + aPID.output;
+  double r_out = xy_out - aPID.output;
 
   // Compute slew
   slew_left.iterate(drive_sensor_left());
   slew_right.iterate(drive_sensor_right());
-  // printf("left: %.2f   right: %.2f\n", slew_left.output(), slew_right.output());
 
-  // Vector scaling
-  double biggest = fmin(slew_left.output(), slew_right.output());
-  if (fabs(left_output) > biggest || fabs(right_output) > biggest) {
-    if (fabs(left_output) > fabs(right_output)) {
-      right_output = right_output * (biggest / fabs(left_output));
-      left_output = util::clamp(left_output, biggest, -biggest);
+  // Vector scaling so nothing can be larger then max speed
+  double max_slew_out = fmin(slew_left.output(), slew_right.output());
+  // When left and right slew are disabled, scale max speed by the turn scaler so robot goes slower in curves
+  if (fabs(l_out) > max_slew_out || fabs(r_out) > max_slew_out) {
+    if (fabs(l_out) > fabs(r_out)) {
+      r_out = r_out * (max_slew_out / fabs(l_out));
+      l_out = util::clamp(l_out, max_slew_out, -max_slew_out);
     } else {
-      left_output = left_output * (biggest / fabs(right_output));
-      right_output = util::clamp(right_output, biggest, -biggest);
+      l_out = l_out * (max_slew_out / fabs(r_out));
+      r_out = util::clamp(r_out, max_slew_out, -max_slew_out);
     }
   }
 
-  printf("xy(%.2f, %.2f, %.2f)   xyPID: %.2f   aPID: %.2f     dir: %i   sgn: %i\n", odom_current.x, odom_current.y, odom_current.theta, xyPID.target_get(), headingPID.target_get(), dir, flipped);
+  // printf("cos %.2f   max_slew_out %.2f      headingerr: %.2f\n", cos_scale, max_slew_out, aPID.target_get());
+  // printf("lr(%.2f, %.2f)   xy_raw: %.2f   xy_out: %.2f   heading_out: %.2f      cos: %.2f   max_slew_out: %.2f\n", l_out, r_out, xyPID.output, xy_out, aPID.output, cos_scale, max_slew_out);
+  // printf("xy(%.2f, %.2f, %.2f)   xyPID: %.2f   aPID: %.2f     dir: %i   sgn: %i   past_target: %i    is_past_target: %i   is_past_using_xy: %i      fake_xy(%.2f, %.2f, %.2f)\n", odom_current.x, odom_current.y, odom_current.theta, xyPID.target_get(), aPID.target_get(), dir, flipped, past_target, (int)is_past_target(odom_target, odom_current), is_past_target_using_xy, fake_x, fake_y, util::to_deg(fake_angle));
 
+  // Set motors
   if (drive_toggle)
-    private_drive_set(left_output, right_output);
+    private_drive_set(l_out, r_out);
+
+  // This is for wait_until
+  leftPID.compute(drive_sensor_left());
+  rightPID.compute(drive_sensor_right());
+}
+
+void Drive::pp_task() {
+  if (fabs(util::distance_to_point(pp_movements[pp_index].target, odom_current)) < LOOK_AHEAD) {
+    if (pp_index < pp_movements.size() - 1) {
+      pp_index = pp_index >= pp_movements.size() - 1 ? pp_index : pp_index + 1;
+      bool slew_on = slew_left.enabled() || slew_right.enabled() ? true : false;
+      raw_pid_odom_ptp_set(pp_movements[pp_index], slew_on);
+    }
+  }
+
+  ptp_task();
 }

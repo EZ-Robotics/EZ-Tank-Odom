@@ -12,6 +12,7 @@ using namespace ez;
 void Drive::pid_drive_exit_condition_set(int p_small_exit_time, double p_small_error, int p_big_exit_time, double p_big_error, int p_velocity_exit_time, int p_mA_timeout) {
   leftPID.exit_condition_set(p_small_exit_time, p_small_error, p_big_exit_time, p_big_error, p_velocity_exit_time, p_mA_timeout);
   rightPID.exit_condition_set(p_small_exit_time, p_small_error, p_big_exit_time, p_big_error, p_velocity_exit_time, p_mA_timeout);
+  forward_drivePID.exit_condition_set(p_small_exit_time, p_small_error, p_big_exit_time, p_big_error, p_velocity_exit_time, p_mA_timeout);
 }
 
 void Drive::pid_drive_exit_condition_set(okapi::QTime p_small_exit_time, okapi::QLength p_small_error, okapi::QTime p_big_exit_time, okapi::QLength p_big_error, okapi::QTime p_velocity_exit_time, okapi::QTime p_mA_timeout) {
@@ -111,17 +112,32 @@ void Drive::pid_wait() {
   }
 
   // Point to Point Exit
-  if (mode == POINT_TO_POINT) {
-    exit_output xy_edit = RUNNING;
+  else if (mode == POINT_TO_POINT || mode == PURE_PURSUIT) {
+    exit_output xy_exit = RUNNING;
     exit_output a_exit = RUNNING;
-    while (xy_edit == RUNNING || a_exit == RUNNING) {
-      xy_edit = xy_edit != RUNNING ? xy_edit : xyPID.exit_condition({left_motors[0], right_motors[0]});
+
+    // Wait until pure pursuit is on the last point, then continue as normal
+    if (mode == PURE_PURSUIT) {
+      while (pp_index != pp_movements.size() - 1) {
+        xy_exit = xy_exit != RUNNING ? xy_exit : xyPID.exit_condition({left_motors[0], right_motors[0]});
+        a_exit = a_exit != RUNNING ? a_exit : aPID.exit_condition({left_motors[0], right_motors[0]});
+
+        if (xy_exit == mA_EXIT || xy_exit == VELOCITY_EXIT || a_exit == mA_EXIT || a_exit == VELOCITY_EXIT)
+          break;
+
+        pros::delay(util::DELAY_TIME);
+      }
+    }
+
+    // When we're at the last point in PP / we're just going to point
+    while (xy_exit == RUNNING || a_exit == RUNNING) {
+      xy_exit = xy_exit != RUNNING ? xy_exit : xyPID.exit_condition({left_motors[0], right_motors[0]});
       a_exit = a_exit != RUNNING ? a_exit : aPID.exit_condition({left_motors[0], right_motors[0]});
       pros::delay(util::DELAY_TIME);
     }
-    if (print_toggle) std::cout << "  XY: " << exit_to_string(xy_edit) << " Exit, error: " << xyPID.error << ".   Angle: " << exit_to_string(a_exit) << " Exit, error: " << aPID.error << ".\n";
+    if (print_toggle) std::cout << "  XY: " << exit_to_string(xy_exit) << " Exit, error: " << xyPID.error << ".   Angle: " << exit_to_string(a_exit) << " Exit, error: " << aPID.error << ".\n";
 
-    if (xy_edit == mA_EXIT || xy_edit == VELOCITY_EXIT || a_exit == mA_EXIT || a_exit == VELOCITY_EXIT) {
+    if (xy_exit == mA_EXIT || xy_exit == VELOCITY_EXIT || a_exit == mA_EXIT || a_exit == VELOCITY_EXIT) {
       interfered = true;
     }
   }
@@ -160,18 +176,18 @@ void Drive::wait_until_drive(double target) {
   pros::delay(10);
 
   // Make sure mode is correct
-  if (!(mode == DRIVE)) {
+  if (!(mode == DRIVE || mode == POINT_TO_POINT || mode == PURE_PURSUIT)) {
     printf("Mode needs to be drive!\n");
     return;
   }
 
   // Calculate error between current and target (target needs to be an in between position)
-  int l_tar = l_start + target;
-  int r_tar = r_start + target;
-  int l_error = l_tar - drive_sensor_left();
-  int r_error = r_tar - drive_sensor_right();
-  int l_sgn = util::sgn(l_error);
-  int r_sgn = util::sgn(r_error);
+  double l_tar = l_start + target;
+  double r_tar = r_start + target;
+  double l_error = l_tar - drive_sensor_left();
+  double r_error = r_tar - drive_sensor_right();
+  double l_sgn = util::sgn(l_error);
+  double r_sgn = util::sgn(r_error);
 
   exit_output left_exit = RUNNING;
   exit_output right_exit = RUNNING;
@@ -214,8 +230,8 @@ void Drive::wait_until_turn_swing(double target) {
   }
 
   // Calculate error between current and target (target needs to be an in between position)
-  int g_error = target - drive_imu_get();
-  int g_sgn = util::sgn(g_error);
+  double g_error = target - drive_imu_get();
+  double g_sgn = util::sgn(g_error);
 
   exit_output turn_exit = RUNNING;
   exit_output swing_exit = RUNNING;
@@ -277,7 +293,7 @@ void Drive::wait_until_turn_swing(double target) {
 
 void Drive::pid_wait_until(okapi::QLength target) {
   // If robot is driving...
-  if (mode == DRIVE) {
+  if (mode == DRIVE || mode == POINT_TO_POINT || mode == PURE_PURSUIT) {
     wait_until_drive(target.convert(okapi::inch));
   } else {
     printf("QLength not supported for turn or swing!\n");
@@ -295,7 +311,7 @@ void Drive::pid_wait_until(okapi::QAngle target) {
 
 void Drive::pid_wait_until(double target) {
   // If driving...
-  if (mode == DRIVE) {
+  if (mode == DRIVE || mode == POINT_TO_POINT || mode == PURE_PURSUIT) {
     wait_until_drive(target);
   }
   // If turning or swinging...
@@ -304,4 +320,17 @@ void Drive::pid_wait_until(double target) {
   } else {
     printf("Not in a valid drive mode!\n");
   }
+}
+
+void Drive::pid_wait_until_pp(int index) {
+  // Let the PID run at least 1 iteration
+  pros::delay(util::DELAY_TIME);
+
+  if (index > injected_pp_index.size() || index < 0)
+    printf("  Wait Until PP Error!  Index %i is not within range!  %i is max!\n", index, injected_pp_index.size());
+
+  while (pp_index < injected_pp_index[index]) {
+    pros::delay(util::DELAY_TIME);
+  }
+  if (print_toggle) printf("  Wait Until PP at (%f, %f)\n", pp_movements[pp_index].target.x, pp_movements[pp_index].target.y);
 }

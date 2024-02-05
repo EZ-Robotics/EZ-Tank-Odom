@@ -343,6 +343,9 @@ class Drive {
   double drive_width_get();
   pose odom_target = {0, 0, 0};
   pose odom_current = {0, 0, 0};
+  std::vector<odom> pp_movements;
+  std::vector<int> injected_pp_index;
+  int pp_index = 0;
   void odom_pose_x_set(double x);
   void odom_pose_y_set(double y);
   void odom_pose_set(pose itarget);
@@ -353,10 +356,19 @@ class Drive {
   void pid_turn_encoder(bool input);
   void pid_turn_set(pose itarget, turn_types dir, int speed, bool slew_on = false);
   pose turn_to_point_target = {0, 0, 0};
-  void pid_odom_ptp_set(odom imovement, bool slew_on);
-  int is_past_target();
+  void pid_odom_ptp_set(odom imovement, bool slew_on = false);
+  void pid_odom_pp_set(std::vector<odom> imovements, bool slew_on = false);
+  void pid_odom_injected_pp_set(std::vector<odom> imovements, bool slew_on = false);
+  void pid_odom_smooth_pp_set(std::vector<odom> imovements, bool slew_on = false);
+  std::vector<odom> smooth_path(std::vector<odom> ipath, double weight_smooth = 0.75, double weight_data = 0.03, double tolerance = 0.0001);
+  double is_past_target(pose target, pose current);
+  void raw_pid_odom_pp_set(std::vector<odom> imovements, bool slew_on);
   int past_target = 0;
   std::vector<pose> point_to_face = {{0, 0, 0}, {0, 0, 0}};
+  double SPACING = 2.0;
+  double LOOK_AHEAD = 7.0;
+  bool is_past_target_using_xy = false;
+  void pid_wait_until_pp(int index);
 
   /////
   //
@@ -758,7 +770,7 @@ class Drive {
    * \param toggle_heading
    *        toggle for heading correction
    */
-  void pid_drive_set(double target, int speed, bool slew_on, bool toggle_heading = true);
+  void pid_drive_set(double target, int speed, bool slew_on = false, bool toggle_heading = true);
 
   /**
    * Sets the robot to turn using PID.
@@ -1446,6 +1458,8 @@ class Drive {
   turn_types current_turn_type = fwd;
   bool ptf1_running = false;
   std::vector<pose> find_point_to_face(pose current, pose target, bool set_global = false);
+  void raw_pid_odom_ptp_set(odom imovement, bool slew_on);
+  std::vector<odom> inject_points(std::vector<odom> imovements);
 
   /**
    * Private wait until for drive
@@ -1501,6 +1515,7 @@ class Drive {
   void swing_pid_task();
   void turn_pid_task();
   void ptp_task();
+  void pp_task();
   void ez_auto_task();
 
   /**
