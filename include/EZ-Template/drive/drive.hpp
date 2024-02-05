@@ -369,6 +369,7 @@ class Drive {
   double LOOK_AHEAD = 7.0;
   bool is_past_target_using_xy = false;
   void pid_wait_until_pp(int index);
+  double dlead = 1.0;
 
   /////
   //

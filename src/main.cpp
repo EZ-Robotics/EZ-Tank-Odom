@@ -31,7 +31,8 @@ ez::GUI display(
      {intake[1], "r inta"}},
 
     {//{"defense two ball, grab closer ball", defense2ballinterupt},
-     {"offense", offense},
+     {"offense 3 ball", offense2},
+     {"offense 2 ball", offense},
      {"defense two ball, grab farther ball and knock closer ball", defense2ball},
      {" drive forward and come back ", drive_example},  // ez-gui bug with "drive forward and come back" doesn't wiggle
      {"turn 3 times", turn_example},

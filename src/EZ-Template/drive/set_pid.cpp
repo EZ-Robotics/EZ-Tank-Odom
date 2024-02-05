@@ -434,7 +434,8 @@ void Drive::pid_odom_injected_pp_set(std::vector<ez::odom> imovements, bool slew
   }
 
   if (print_toggle) printf("Injected ");
-  raw_pid_odom_pp_set(inject_points(imovements), slew_on);
+  std::vector<odom> input_path = inject_points(imovements);
+  raw_pid_odom_pp_set(input_path, slew_on);
 }
 
 // Smooth injected pure pursuit
@@ -446,5 +447,6 @@ void Drive::pid_odom_smooth_pp_set(std::vector<odom> imovements, bool slew_on) {
   }
 
   if (print_toggle) printf("Smooth Injected ");
-  raw_pid_odom_pp_set(smooth_path(inject_points(imovements), 0.75, 0.03, 0.0001), slew_on);
+  std::vector<odom> input_path = smooth_path(inject_points(imovements), 0.75, 0.03, 0.0001);
+  raw_pid_odom_pp_set(input_path, slew_on);
 }

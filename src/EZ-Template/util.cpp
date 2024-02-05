@@ -190,5 +190,15 @@ pose vector_off_point(double added, pose icurrent) {
   return output;
 }
 
+std::vector<pose> boomerang(pose start, pose itarget, double dlead) {
+  double h = std::hypot(start.x - itarget.x, start.y - itarget.y);
+  std::vector<pose> carrot;
+  double new_x = itarget.x - h * sin(to_rad(itarget.theta)) * dlead;
+  double new_y = itarget.y - h * cos(to_rad(itarget.theta)) * dlead;
+  carrot.push_back({new_x, new_y});
+  carrot.push_back({itarget.x, itarget.y});
+  return carrot;
+}
+
 }  // namespace util
 }  // namespace ez

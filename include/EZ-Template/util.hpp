@@ -143,6 +143,7 @@ double absolute_angle_to_point(pose itarget, pose icurrent);
 double wrap_angle(double theta);
 double distance_to_point(pose itarget, pose icurrent);
 pose vector_off_point(double added, pose icurrent);
+std::vector<pose> boomerang(pose start, pose itarget, double dlead);
 
 }  // namespace util
 }  // namespace ez

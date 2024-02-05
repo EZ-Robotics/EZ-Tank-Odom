@@ -1,3 +1,4 @@
+#include "EZ-Template/util.hpp"
 #include "main.h"
 
 /////
@@ -9,6 +10,9 @@
 const int DRIVE_SPEED = 110;
 const int TURN_SPEED = 90;
 const int SWING_SPEED = 90;
+const int INTAKE_SPEED = 80;
+const int INTAKE_HOLD = 30;
+const int OUTAKE_SPEED = -127;
 
 ///
 // Constants
@@ -35,32 +39,94 @@ void offense_odom_start() {
   // Set new position
   chassis.odom_pose_set({0, 0, -15});
 }
+void offense_end() {
+  pose first_pos = {-5, 16};
+  std::vector<pose> bm1 = ez::util::boomerang(first_pos, {0, -4, -70}, 0.375);
+  chassis.pid_odom_smooth_pp_set({{first_pos, rev, 110},
+                                  {bm1[0], rev, 80},
+                                  {bm1[1], rev, 80}},
+                                 false);
+  chassis.pid_wait_until_pp(2);
+  set_intake(OUTAKE_SPEED);
+  chassis.pid_wait();
+
+  set_intake(INTAKE_SPEED);
+  chassis.pid_odom_smooth_pp_set({{{-4, -9}, fwd, 80},
+                                  {{-24, -8}, fwd, 80}},
+                                 false);
+  chassis.pid_wait();
+
+  pose start = {14, 12};
+  double dist1 = 8.0;
+
+  chassis.pid_odom_smooth_pp_set({{{0, -7}, rev, 80},
+                                  {{4, -5}, rev, 80},
+                                  {start, rev, 80}},
+                                 false);
+  chassis.pid_wait_until_pp(2);
+  set_intake(INTAKE_HOLD);
+  chassis.pid_wait();
+
+  chassis.pid_odom_smooth_pp_set({{{start.x, start.y + dist1}, rev, 80}},
+                                 false);
+  chassis.pid_wait();
+
+  chassis.pid_odom_smooth_pp_set({{start, fwd, 80}},
+                                 false);
+  chassis.pid_wait();
+
+  set_intake(-OUTAKE_SPEED);
+  pros::delay(350);
+
+  double dist2 = 8.0;
+  chassis.pid_odom_smooth_pp_set({{{start.x, start.y + dist2}, fwd, 80}},
+                                 false);
+  chassis.pid_wait();
+
+  chassis.pid_odom_smooth_pp_set({{start, rev, 80}},
+                                 false);
+  chassis.pid_wait();
+}
+
+void offense2() {
+  offense_odom_start();             // Setup offense starting position
+  int time_start = pros::millis();  // Timestamp when this auto started
+
+  // Grab center center ball
+  set_intake(INTAKE_SPEED);
+  chassis.pid_odom_injected_pp_set({{{-9, 33}, fwd, 110}},
+                                   false);
+  chassis.pid_wait();
+
+  chassis.pid_odom_injected_pp_set({{{-9, 24}, rev, 80}},
+                                   false);
+  chassis.pid_wait();
+
+  chassis.pid_turn_set(125, TURN_SPEED);
+  chassis.pid_wait_until(110);
+  set_intake(OUTAKE_SPEED);
+  chassis.pid_wait();
+  pros::delay(150);
+
+  set_intake(INTAKE_SPEED);
+  chassis.pid_odom_smooth_pp_set({{{-19, 23}, fwd, 80}},
+                                 false);
+  chassis.pid_wait();
+
+  offense_end();
+}
 
 void offense() {
   offense_odom_start();             // Setup offense starting position
   int time_start = pros::millis();  // Timestamp when this auto started
 
-  set_intake(80);
+  // Grab center center ball
+  set_intake(INTAKE_SPEED);
   chassis.pid_odom_injected_pp_set({{{-9, 33}, fwd, 110}},
                                    false);
   chassis.pid_wait();
 
-  chassis.pid_turn_set(90, 127);
-  chassis.pid_wait_until(80_deg);
-  set_intake(-127);
-  pros::delay(150);
-
-  chassis.pid_turn_set(-80, 127);
-  chassis.pid_wait();
-
-  set_intake(80);
-  chassis.pid_drive_set(8, 127);
-  chassis.pid_wait();
-
-  chassis.pid_odom_smooth_pp_set({{{-5, 16}, rev, 110},
-                                  {{2, 0}, rev, 90}},
-                                 false);
-  chassis.pid_wait();
+  offense_end();
 }
 
 ///
@@ -79,7 +145,7 @@ void defense_end(int time_start) {
                                  false);
   chassis.pid_wait();
 
-  set_intake(30);
+  set_intake(INTAKE_HOLD);
 
   // Face the offensive side
   chassis.pid_turn_set(95, TURN_SPEED);
@@ -90,7 +156,7 @@ void defense_end(int time_start) {
     pros::delay(util::DELAY_TIME);
   }
 
-  set_intake(-127);
+  set_intake(OUTAKE_SPEED);
   chassis.pid_drive_set(24, DRIVE_SPEED);
   chassis.pid_wait();
 }
@@ -103,9 +169,9 @@ void defense2ball() {
   int time_start = pros::millis();  // Timestamp when this auto started
 
   // Rush towards closer center ball
-  set_intake(80);
   chassis.pid_odom_injected_pp_set({{{8, 32}, fwd, 110}},
                                    true);
+  set_intake(INTAKE_SPEED);
   chassis.pid_wait();
 
   // Run the end of the function
@@ -120,13 +186,12 @@ void defense2ballinterupt() {
   int time_start = pros::millis();  // Timestamp when this auto started
 
   // Rush towards farther center back
-  set_intake(80);
   chassis.pid_odom_smooth_pp_set({{{4, 16}, fwd, 110},
                                   {{8, 28}, fwd, 110},
                                   {{13, 30}, fwd, 110},
                                   {{18, 34}, fwd, 110}},
                                  false);
-  set_intake(80);
+  set_intake(INTAKE_SPEED);
   chassis.pid_wait();
 
   // RUn the end of the function
