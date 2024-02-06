@@ -39,7 +39,7 @@ void offense_odom_start() {
   // Set new position
   chassis.odom_pose_set({0, 0, -15});
 }
-void offense_end() {
+void offense_end(bool touch_bar) {
   // Drive over to the lane and spit the ball out
   pose first_pos = {-5, 16};
   std::vector<pose> bm1 = ez::util::boomerang(first_pos, {0, -4, -70}, 0.375);
@@ -54,7 +54,7 @@ void offense_end() {
   // Go in the lane to intake the ball
   set_intake(INTAKE_SPEED);
   chassis.pid_odom_smooth_pp_set({{{-4, -9}, fwd, 80},
-                                  {{-24, -8}, fwd, 80}},
+                                  {{-23, -8}, fwd, 80}},
                                  false);
   chassis.pid_wait();
 
@@ -79,7 +79,7 @@ void offense_end() {
   chassis.pid_wait();
 
   // Come back and flip around to outtake and score the other ball
-  double dist2 = 8.0;
+  double dist2 = 5.0;
   double tx_cx = start.x - chassis.odom_target.x;
   double m = 0.0;
   double angle = 0.0;
@@ -105,9 +105,17 @@ void offense_end() {
   chassis.pid_odom_injected_pp_set({{start, rev, 80}},
                                    false);
   chassis.pid_wait();
+
+  if (touch_bar) {
+    set_intake(0);
+    chassis.pid_odom_smooth_pp_set({{{-4, -9}, fwd, 80},
+                                    {{-22, -8}, fwd, 110}},
+                                   false);
+    chassis.pid_wait();
+  }
 }
 
-void offense3ball() {
+void raw_offense3ball(bool touch_bar) {
   offense_odom_start();             // Setup offense starting position
   int time_start = pros::millis();  // Timestamp when this auto started
 
@@ -134,10 +142,10 @@ void offense3ball() {
                                    false);
   chassis.pid_wait();
 
-  offense_end();
+  offense_end(touch_bar);
 }
 
-void offense2ball() {
+void raw_offense2ball(bool touch_bar) {
   offense_odom_start();             // Setup offense starting position
   int time_start = pros::millis();  // Timestamp when this auto started
 
@@ -147,8 +155,13 @@ void offense2ball() {
                                    false);
   chassis.pid_wait();
 
-  offense_end();
+  offense_end(touch_bar);
 }
+
+void offense3ball() { raw_offense3ball(true); }
+void offense2ball() { raw_offense2ball(true); }
+void offense3ball_nobar() { raw_offense3ball(false); }
+void offense2ball_nobar() { raw_offense2ball(false); }
 
 ///
 // Defense Start and End
@@ -158,7 +171,7 @@ void defense_odom_start() {
   chassis.odom_pose_set({0, 0, 15});
 }
 
-void defense_end(int time_start) {
+void defense_end(int time_start, bool touch_bar = false) {
   // Come back to face the lane, knocking the closer center ball on the way
   chassis.pid_odom_smooth_pp_set({{{4, 16}, rev, 110},
                                   {{0, 0}, rev, 80},
@@ -173,17 +186,28 @@ void defense_end(int time_start) {
   chassis.pid_wait();
 
   // Wait before pushing balls over to offensive side so we don't mess opponents up
-  while (pros::millis() - time_start < 13500) {
-    pros::delay(util::DELAY_TIME);
+  if (touch_bar) {
+    while (pros::millis() - time_start < 13500) {
+      pros::delay(util::DELAY_TIME);
+    }
   }
 
   set_intake(OUTAKE_SPEED);
   chassis.pid_drive_set(24, DRIVE_SPEED);
   chassis.pid_wait();
+
+  if (!touch_bar) {
+    chassis.pid_drive_set(-24, DRIVE_SPEED);
+    chassis.pid_wait();
+
+    // Face the offensive side
+    chassis.pid_turn_set(45, TURN_SPEED);
+    chassis.pid_wait();
+  }
 }
 
 // Defense 2 Ball
-void defense2ball() {
+void raw_defense2ball(bool touch_bar) {
   defense_odom_start();             // Setup defense starting position
   int time_start = pros::millis();  // Timestamp when this auto started
 
@@ -194,28 +218,10 @@ void defense2ball() {
   chassis.pid_wait();
 
   // Run the end of the function
-  defense_end(time_start);
+  defense_end(time_start, touch_bar);
 }
 
-// Defense 2 Ball with Interrupt
-void defense2ballinterupt() {
-  defense_odom_start();             // Setup defense starting position
-  int time_start = pros::millis();  // Timestamp when this auto started
-
-  // Rush towards farther center back
-  chassis.pid_odom_smooth_pp_set({{{4, 16}, fwd, 110},
-                                  {{8, 28}, fwd, 110},
-                                  {{13, 30}, fwd, 110},
-                                  {{18, 34}, fwd, 110}},
-                                 false);
-  set_intake(INTAKE_SPEED);
-  chassis.pid_wait();
-
-  // Run the end of the function
-  defense_end(time_start);
-}
-
-void defense2ballinterupt_barrier() {
+void raw_defense2ballinterupt_barrier(bool touch_bar) {
   defense_odom_start();             // Setup defense starting position
   int time_start = pros::millis();  // Timestamp when this auto started
 
@@ -234,7 +240,30 @@ void defense2ballinterupt_barrier() {
   pros::delay(1000);
 
   // Run the end of the function
-  defense_end(time_start);
+  defense_end(time_start, touch_bar);
+}
+
+void defense2ball() { raw_defense2ball(true); }
+void defense2ballinterupt_barrier() { raw_defense2ballinterupt_barrier(true); }
+void defense2ball_nobar() { raw_defense2ball(false); }
+void defense2ballinterupt_barrier_nobar() { raw_defense2ballinterupt_barrier(false); }
+
+// Defense 2 Ball with Interrupt
+void defense2ballinterupt(bool touch_bar) {
+  defense_odom_start();             // Setup defense starting position
+  int time_start = pros::millis();  // Timestamp when this auto started
+
+  // Rush towards farther center back
+  chassis.pid_odom_smooth_pp_set({{{4, 16}, fwd, 110},
+                                  {{8, 28}, fwd, 110},
+                                  {{13, 30}, fwd, 110},
+                                  {{18, 34}, fwd, 110}},
+                                 false);
+  set_intake(INTAKE_SPEED);
+  chassis.pid_wait();
+
+  // Run the end of the function
+  defense_end(time_start, touch_bar);
 }
 
 ///
