@@ -313,9 +313,12 @@ void Drive::pid_swing_relative_set(e_swing type, double target, int speed, int o
 void Drive::pid_turn_set(pose itarget, turn_types dir, int speed, bool slew_on) {
   current_turn_type = dir;
 
-  int add = current_turn_type == REV ? 180 : 0;
-  odom_target.theta = util::absolute_angle_to_point({itarget.x, itarget.y}, odom_target) + add;
-  double target = util::wrap_angle(odom_target.theta - drive_imu_get()) + drive_imu_get();
+  // Calculate the point to look at
+  point_to_face = find_point_to_face(odom_target, {itarget.x, itarget.y}, true);
+
+  int add = current_turn_type == REV ? 180 : 0;                                                     // Decide if going fwd or rev
+  double target = util::absolute_angle_to_point(point_to_face[!ptf1_running], odom_current) + add;  // Calculate the point for angle to face
+  turnPID.target_set(util::wrap_angle(target - drive_imu_get()));                                   // Constrain error to -180 to 180
 
   if (print_toggle) printf("Turn to Point PID Started... Target Point: (%f, %f) \n", itarget.x, itarget.y);
   pid_turn_set(target, speed, slew_on);

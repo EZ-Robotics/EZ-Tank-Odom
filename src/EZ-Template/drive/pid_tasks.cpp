@@ -99,9 +99,9 @@ void Drive::turn_pid_task() {
   }
   // Compute PID if we're turning to point
   else {
-    int add = current_turn_type == REV ? 180 : 0;
-    double a_target = util::absolute_angle_to_point(turn_to_point_target, odom_current) + add;
-    turnPID.target_set(util::wrap_angle(a_target - drive_imu_get()));
+    int add = current_turn_type == REV ? 180 : 0;                                                       // Decide if going fwd or rev
+    double a_target = util::absolute_angle_to_point(point_to_face[!ptf1_running], odom_current) + add;  // Calculate the point for angle to face
+    turnPID.target_set(util::wrap_angle(a_target - drive_imu_get()));                                   // Constrain error to -180 to 180
     turnPID.compute(0);
   }
 

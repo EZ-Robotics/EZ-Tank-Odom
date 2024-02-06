@@ -6,8 +6,9 @@ extern Drive chassis;
 
 void defense2ball();
 void defense2ballinterupt();
-void offense();
-void offense2();
+void offense2ball();
+void offense3ball();
+void defense2ballinterupt_barrier();
 
 void drive_example();
 void turn_example();
