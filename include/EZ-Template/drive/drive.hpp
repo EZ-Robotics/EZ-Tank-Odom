@@ -91,6 +91,8 @@ class Drive {
   PID forward_drivePID;
   PID leftPID;
   PID rightPID;
+  PID xyPID;
+  PID aPID;
   PID backward_drivePID;
   PID swingPID;
   PID forward_swingPID;
@@ -248,8 +250,10 @@ class Drive {
    *        Motor cartridge RPM
    * \param ratio
    *        External gear ratio, wheel gear / motor gear.
+   * \param drive_width
+   *        Width of the drive in inches, if this is set then odom will enable.
    */
-  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio);
+  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio, double drive_width = -1);
 
   /**
    * Creates a Drive Controller using encoders plugged into the brain.
@@ -271,7 +275,7 @@ class Drive {
    * \param right_tracker_ports
    *        Input {3, 4}.  Make ports negative if reversed!
    */
-  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio, std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports);
+  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio, std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports, double drive_width = -1);
 
   /**
    * Creates a Drive Controller using encoders plugged into a 3 wire expander.
@@ -295,7 +299,7 @@ class Drive {
    * \param expander_smart_port
    *        Port the expander is plugged into.
    */
-  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio, std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports, int expander_smart_port);
+  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ticks, double ratio, std::vector<int> left_tracker_ports, std::vector<int> right_tracker_ports, int expander_smart_port, double drive_width = -1);
 
   /**
    * Creates a Drive Controller using rotation sensors.
@@ -315,12 +319,57 @@ class Drive {
    * \param right_tracker_port
    *        Make ports negative if reversed!
    */
-  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ratio, int left_rotation_port, int right_rotation_port);
+  Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_ports, int imu_port, double wheel_diameter, double ratio, int left_rotation_port, int right_rotation_port, double drive_width = -1);
 
   /**
    * Sets drive defaults.
    */
   void drive_defaults_set();
+
+  /////
+  //
+  // Odometry
+  //
+  /////
+
+  /**
+   * Tasks for tracking.
+   */
+  // pros::Task ez_tracking;
+  void ez_tracking_task();
+
+  void drive_width_set(double input);
+  void drive_odom_enable(bool input);
+  double drive_width_get();
+  pose odom_target = {0, 0, 0};
+  pose odom_current = {0, 0, 0};
+  std::vector<odom> pp_movements;
+  std::vector<int> injected_pp_index;
+  int pp_index = 0;
+  void odom_pose_x_set(double x);
+  void odom_pose_y_set(double y);
+  void odom_pose_set(pose itarget);
+  void odom_pose_theta_set(double a);
+  void odom_reset();
+  bool imu_calibration_complete = false;
+  double angle_rad = 0.0;
+  void pid_turn_encoder(bool input);
+  void pid_turn_set(pose itarget, turn_types dir, int speed, bool slew_on = false);
+  pose turn_to_point_target = {0, 0, 0};
+  void pid_odom_ptp_set(odom imovement, bool slew_on = false);
+  void pid_odom_pp_set(std::vector<odom> imovements, bool slew_on = false);
+  void pid_odom_injected_pp_set(std::vector<odom> imovements, bool slew_on = false);
+  void pid_odom_smooth_pp_set(std::vector<odom> imovements, bool slew_on = false);
+  std::vector<odom> smooth_path(std::vector<odom> ipath, double weight_smooth = 0.75, double weight_data = 0.03, double tolerance = 0.0001);
+  double is_past_target(pose target, pose current);
+  void raw_pid_odom_pp_set(std::vector<odom> imovements, bool slew_on);
+  int past_target = 0;
+  std::vector<pose> point_to_face = {{0, 0, 0}, {0, 0, 0}};
+  double SPACING = 2.0;
+  double LOOK_AHEAD = 7.0;
+  bool is_past_target_using_xy = false;
+  void pid_wait_until_pp(int index);
+  double dlead = 1.0;
 
   /////
   //
@@ -722,7 +771,7 @@ class Drive {
    * \param toggle_heading
    *        toggle for heading correction
    */
-  void pid_drive_set(double target, int speed, bool slew_on, bool toggle_heading = true);
+  void pid_drive_set(double target, int speed, bool slew_on = false, bool toggle_heading = true);
 
   /**
    * Sets the robot to turn using PID.
@@ -1136,6 +1185,38 @@ class Drive {
    * Set's constants for drive exit conditions.
    *
    * \param p_small_exit_time
+   *        Sets small_exit_time.  Timer for to exit within smalL_error.  In okapi units.
+   * \param p_small_error
+   *        Sets smalL_error. Timer will start when error is within this.  In okapi units.
+   * \param p_big_exit_time
+   *        Sets big_exit_time.  Timer for to exit within big_error.  In okapi units.
+   * \param p_big_error
+   *        Sets big_error. Timer will start when error is within this.  In okapi units.
+   * \param p_velocity_exit_time
+   *        Sets velocity_exit_time.  Timer will start when velocity is 0.  In okapi units.
+   */
+  void pid_odom_drive_exit_condition_set(okapi::QTime p_small_exit_time, okapi::QLength p_small_error, okapi::QTime p_big_exit_time, okapi::QLength p_big_error, okapi::QTime p_velocity_exit_time, okapi::QTime p_mA_timeout);
+
+  /**
+   * Set's constants for turn exit conditions.
+   *
+   * \param p_small_exit_time
+   *        Sets small_exit_time.  Timer for to exit within smalL_error.  In okapi units.
+   * \param p_small_error
+   *        Sets smalL_error. Timer will start when error is within this.  In okapi units.
+   * \param p_big_exit_time
+   *        Sets big_exit_time.  Timer for to exit within big_error.  In okapi units.
+   * \param p_big_error
+   *        Sets big_error. Timer will start when error is within this.  In okapi units.
+   * \param p_velocity_exit_time
+   *        Sets velocity_exit_time.  Timer will start when velocity is 0.  In okapi units.
+   */
+  void pid_odom_turn_exit_condition_set(okapi::QTime p_small_exit_time, okapi::QAngle p_small_error, okapi::QTime p_big_exit_time, okapi::QAngle p_big_error, okapi::QTime p_velocity_exit_time, okapi::QTime p_mA_timeout);
+
+  /**
+   * Set's constants for drive exit conditions.
+   *
+   * \param p_small_exit_time
    *        Sets small_exit_time.  Timer for to exit within smalL_error.
    * \param p_small_error
    *        Sets smalL_error. Timer will start when error is within this.
@@ -1163,6 +1244,38 @@ class Drive {
    *        Sets velocity_exit_time.  Timer will start when velocity is 0.
    */
   void pid_turn_exit_condition_set(int p_small_exit_time, double p_small_error, int p_big_exit_time, double p_big_error, int p_velocity_exit_time, int p_mA_timeout);
+
+  /**
+   * Set's constants for drive exit conditions.
+   *
+   * \param p_small_exit_time
+   *        Sets small_exit_time.  Timer for to exit within smalL_error.
+   * \param p_small_error
+   *        Sets smalL_error. Timer will start when error is within this.
+   * \param p_big_exit_time
+   *        Sets big_exit_time.  Timer for to exit within big_error.
+   * \param p_big_error
+   *        Sets big_error. Timer will start when error is within this.
+   * \param p_velocity_exit_time
+   *        Sets velocity_exit_time.  Timer will start when velocity is 0.
+   */
+  void pid_odom_drive_exit_condition_set(int p_small_exit_time, double p_small_error, int p_big_exit_time, double p_big_error, int p_velocity_exit_time, int p_mA_timeout);
+
+  /**
+   * Set's constants for turn exit conditions.
+   *
+   * \param p_small_exit_time
+   *        Sets small_exit_time.  Timer for to exit within smalL_error.
+   * \param p_small_error
+   *        Sets smalL_error. Timer will start when error is within this.
+   * \param p_big_exit_time
+   *        Sets big_exit_time.  Timer for to exit within big_error.
+   * \param p_big_error
+   *        Sets big_error. Timer will start when error is within this.
+   * \param p_velocity_exit_time
+   *        Sets velocity_exit_time.  Timer will start when velocity is 0.
+   */
+  void pid_odom_turn_exit_condition_set(int p_small_exit_time, double p_small_error, int p_big_exit_time, double p_big_error, int p_velocity_exit_time, int p_mA_timeout);
 
   /**
    * Set's constants for swing exit conditions.
@@ -1245,55 +1358,56 @@ class Drive {
    * Sets the value that PID Tuner increments P
    *
    * \param p
-   *        double, p will increase by this
+   *        float, p will increase by this
    */
-  void pid_tuner_increment_p_set(double p);
+  void pid_tuner_increment_p_set(float p);
 
   /**
    * Sets the value that PID Tuner increments I
    *
    * \param p
-   *        double, i will increase by this
+   *        float, i will increase by this
    */
-  void pid_tuner_increment_i_set(double i);
+  void pid_tuner_increment_i_set(float i);
 
   /**
    * Sets the value that PID Tuner increments D
    *
    * \param p
-   *        double, d will increase by this
+   *        float, d will increase by this
    */
-  void pid_tuner_increment_d_set(double d);
+  void pid_tuner_increment_d_set(float d);
 
   /**
    * Sets the value that PID Tuner increments Start I
    *
    * \param p
-   *        double, start i will increase by this
+   *        float, start i will increase by this
    */
-  void pid_tuner_increment_start_i_set(double start_i);
+  void pid_tuner_increment_start_i_set(float start_i);
 
   /**
    * Returns the value that PID Tuner increments P
    */
-  double pid_tuner_increment_p_get();
+  float pid_tuner_increment_p_get();
 
   /**
    * Returns the value that PID Tuner increments I
    */
-  double pid_tuner_increment_i_get();
+  float pid_tuner_increment_i_get();
 
   /**
    * Returns the value that PID Tuner increments D
    */
-  double pid_tuner_increment_d_get();
+  float pid_tuner_increment_d_get();
 
   /**
    * Returns the value that PID Tuner increments Start I
    */
-  double pid_tuner_increment_start_i_get();
+  float pid_tuner_increment_start_i_get();
 
  private:  // !Auton
+           // PID Tuner
   bool drive_toggle = true;
   bool print_toggle = true;
   int swing_min = 0;
@@ -1305,14 +1419,20 @@ class Drive {
   bool slew_swing_using_angle = false;
   bool pid_tuner_terminal_b = false;
   bool pid_tuner_lcd_b = true;
-
   struct const_and_name {
     std::string name = "";
     PID::Constants *consts;
   };
-  std::vector<const_and_name> constants;
+  std::vector<const_and_name> constants /*= {
+      {"Drive Forward PID Constants", &forward_drivePID.constants},
+      {"Drive Backward PID Constants", &backward_drivePID.constants},
+      {"Heading PID Constants", &headingPID.constants},
+      {"Turn PID Constants", &turnPID.constants},
+      {"Swing Forward PID Constants", &forward_swingPID.constants},
+      {"Swing Backward PID Constants", &backward_swingPID.constants}}*/
+      ;
   void pid_tuner_print();
-  void pid_tuner_value_modify(double p, double i, double d, double start);
+  void pid_tuner_value_modify(float p, float i, float d, float start);
   void pid_tuner_value_increase();
   void pid_tuner_value_decrease();
   void pid_tuner_print_brain();
@@ -1320,16 +1440,27 @@ class Drive {
   void pid_tuner_brain_init();
   int column = 0;
   int row = 0;
-  int column_max = 0;
-  const int row_max = 3;
-  std::string name, kp, ki, kd, starti;
   std::string arrow = " <--\n";
-  std::string newline = "\n";
-  bool last_controller_curve_state;
-  bool last_auton_selector_state;
+  bool last_controller_curve_state = false;
+  bool last_auton_selector_state = false;
   bool pid_tuner_on = false;
-  std::string complete_pid_tuner_output;
-  double p_increment = 0.1, i_increment = 0.001, d_increment = 0.25, start_i_increment = 1.0;
+  std::string complete_pid_tuner_output = "";
+  float p_increment = 0.1, i_increment = 0.001, d_increment = 0.25, start_i_increment = 1.0;
+
+  // Odometry
+  float track_width = 0.0;
+  bool odometry_enabled = false;
+  double l_last = 0, r_last = 0 /*, c_last = 0*/;
+  /*double h = 0, h2 = 0*/;  // rad for big circle
+  double last_theta = 0;
+  // double Xx = 0, Yy = 0, Xy = 0, Yx = 0;
+  double encoder_angle_rad = 0;
+  bool turn_with_encoder = false;
+  turn_types current_turn_type = fwd;
+  bool ptf1_running = false;
+  std::vector<pose> find_point_to_face(pose current, pose target, bool set_global = false);
+  void raw_pid_odom_ptp_set(odom imovement, bool slew_on);
+  std::vector<odom> inject_points(std::vector<odom> imovements);
 
   /**
    * Private wait until for drive
@@ -1384,6 +1515,8 @@ class Drive {
   void drive_pid_task();
   void swing_pid_task();
   void turn_pid_task();
+  void ptp_task();
+  void pp_task();
   void ez_auto_task();
 
   /**

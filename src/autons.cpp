@@ -1,3 +1,4 @@
+#include "EZ-Template/util.hpp"
 #include "main.h"
 
 /////
@@ -6,9 +7,12 @@
 /////
 
 // These are out of 127
-const int DRIVE_SPEED = 110;  
+const int DRIVE_SPEED = 110;
 const int TURN_SPEED = 90;
 const int SWING_SPEED = 90;
+const int INTAKE_SPEED = 127;
+const int INTAKE_HOLD = 30;
+const int OUTAKE_SPEED = -127;
 
 ///
 // Constants
@@ -22,10 +26,245 @@ void default_constants() {
   chassis.pid_turn_exit_condition_set(100_ms, 3_deg, 300_ms, 7_deg, 500_ms, 750_ms);
   chassis.pid_swing_exit_condition_set(100_ms, 3_deg, 300_ms, 7_deg, 500_ms, 750_ms);
   chassis.pid_drive_exit_condition_set(100_ms, 1_in, 300_ms, 3_in, 500_ms, 500_ms);
+  chassis.pid_odom_turn_exit_condition_set(100_ms, 3_deg, 300_ms, 7_deg, 500_ms, 750_ms);
+  chassis.pid_odom_drive_exit_condition_set(100_ms, 1_in, 300_ms, 3_in, 500_ms, 500_ms);
 
   chassis.slew_drive_constants_set(7_in, 80);
 }
 
+///
+// Offense Start
+///
+void offense_odom_start() {
+  // Set new position
+  chassis.odom_pose_set({0, 0, -15});
+}
+void offense_end(bool touch_bar) {
+  // Drive over to the lane and spit the ball out
+  pose first_pos = {-5, 16};
+  std::vector<pose> bm1 = ez::util::boomerang(first_pos, {0, -4, -70}, 0.375);
+  chassis.pid_odom_smooth_pp_set({{first_pos, rev, 110},
+                                  {bm1[0], rev, 80},
+                                  {bm1[1], rev, 80}},
+                                 false);
+  chassis.pid_wait_until_pp(2);
+  set_intake(OUTAKE_SPEED);
+  chassis.pid_wait();
+
+  // Go in the lane to intake the ball
+  set_intake(INTAKE_SPEED);
+  chassis.pid_odom_smooth_pp_set({{{-4, -9}, fwd, 80},
+                                  {{-23, -8}, fwd, 80}},
+                                 false);
+  chassis.pid_wait();
+
+  // Go back to push balls into the goal
+  pose start = {14, 12};
+  double dist1 = 8.0;
+  chassis.pid_odom_smooth_pp_set({{{0, -7}, rev, 80},
+                                  {{4, -5}, rev, 80},
+                                  {start, rev, 80}},
+                                 false);
+  chassis.pid_wait_until_pp(2);
+  set_intake(INTAKE_HOLD);
+  chassis.pid_wait();
+
+  // Push balls into the goal
+  chassis.pid_odom_smooth_pp_set({{{start.x, start.y + dist1}, rev, 80}},
+                                 false);
+  chassis.pid_wait();
+
+  chassis.pid_odom_smooth_pp_set({{start, fwd, 80}},
+                                 false);
+  chassis.pid_wait();
+
+  // Come back and flip around to outtake and score the other ball
+  double dist2 = 5.0;
+  double tx_cx = start.x - chassis.odom_target.x;
+  double m = 0.0;
+  double angle = 0.0;
+  if (tx_cx != 0) {
+    m = (start.y - chassis.odom_target.y) / tx_cx;
+    angle = 90.0 - util::to_deg(atan(m));
+  }
+  pose face_point = util::vector_off_point(chassis.LOOK_AHEAD, {start.x, start.y + dist2, angle});
+  chassis.pid_turn_set(face_point, fwd, TURN_SPEED);
+  chassis.pid_wait();
+
+  set_intake(OUTAKE_SPEED);
+  pros::delay(300);
+
+  chassis.pid_odom_injected_pp_set({{{start.x, start.y - 5.0}, rev, 110}},
+                                   false);
+  chassis.pid_wait();
+
+  chassis.pid_odom_injected_pp_set({{{start.x, start.y + dist2}, fwd, 110}},
+                                   false);
+  chassis.pid_wait();
+
+  chassis.pid_odom_injected_pp_set({{start, rev, 80}},
+                                   false);
+  chassis.pid_wait();
+
+  if (touch_bar) {
+    set_intake(0);
+    chassis.pid_odom_smooth_pp_set({{{-4, -9}, fwd, 80},
+                                    {{-22, -8}, fwd, 110}},
+                                   false);
+    chassis.pid_wait();
+  }
+}
+
+void raw_offense3ball(bool touch_bar) {
+  offense_odom_start();             // Setup offense starting position
+  int time_start = pros::millis();  // Timestamp when this auto started
+
+  // Grab center center ball
+  set_intake(INTAKE_SPEED);
+  chassis.pid_odom_injected_pp_set({{{-9, 33}, fwd, 110}},
+                                   false);
+  chassis.pid_wait();
+
+  chassis.pid_odom_injected_pp_set({{{-9, 24}, rev, 80}},
+                                   false);
+  chassis.pid_wait();
+
+  // Spit out the ball towards corner
+  chassis.pid_turn_set(125, TURN_SPEED);
+  chassis.pid_wait_until(110);
+  set_intake(OUTAKE_SPEED);
+  chassis.pid_wait();
+  pros::delay(250);
+
+  // Intake the other ball against the barrier
+  set_intake(INTAKE_SPEED);
+  chassis.pid_odom_injected_pp_set({{{-21, 21}, fwd, 80}},
+                                   false);
+  chassis.pid_wait();
+
+  offense_end(touch_bar);
+}
+
+void raw_offense2ball(bool touch_bar) {
+  offense_odom_start();             // Setup offense starting position
+  int time_start = pros::millis();  // Timestamp when this auto started
+
+  // Grab center center ball
+  set_intake(INTAKE_SPEED);
+  chassis.pid_odom_injected_pp_set({{{-9, 33}, fwd, 110}},
+                                   false);
+  chassis.pid_wait();
+
+  offense_end(touch_bar);
+}
+
+void offense3ball() { raw_offense3ball(true); }
+void offense2ball() { raw_offense2ball(true); }
+void offense3ball_nobar() { raw_offense3ball(false); }
+void offense2ball_nobar() { raw_offense2ball(false); }
+
+///
+// Defense Start and End
+///
+void defense_odom_start() {
+  // Set new position
+  chassis.odom_pose_set({0, 0, 15});
+}
+
+void defense_end(int time_start, bool touch_bar = false) {
+  // Come back to face the lane, knocking the closer center ball on the way
+  chassis.pid_odom_smooth_pp_set({{{4, 16}, rev, 110},
+                                  {{0, 0}, rev, 80},
+                                  {{-6, -3}, rev, 60}},
+                                 false);
+  chassis.pid_wait();
+
+  set_intake(INTAKE_HOLD);
+
+  // Face the offensive side
+  chassis.pid_turn_set(95, TURN_SPEED);
+  chassis.pid_wait();
+
+  // Wait before pushing balls over to offensive side so we don't mess opponents up
+  if (touch_bar) {
+    while (pros::millis() - time_start < 13500) {
+      pros::delay(util::DELAY_TIME);
+    }
+  }
+
+  set_intake(OUTAKE_SPEED);
+  chassis.pid_drive_set(24, DRIVE_SPEED);
+  chassis.pid_wait();
+
+  if (!touch_bar) {
+    chassis.pid_drive_set(-24, DRIVE_SPEED);
+    chassis.pid_wait();
+
+    // Face the offensive side
+    chassis.pid_turn_set(45, TURN_SPEED);
+    chassis.pid_wait();
+  }
+}
+
+// Defense 2 Ball
+void raw_defense2ball(bool touch_bar) {
+  defense_odom_start();             // Setup defense starting position
+  int time_start = pros::millis();  // Timestamp when this auto started
+
+  // Rush towards closer center ball
+  chassis.pid_odom_injected_pp_set({{{8, 32}, fwd, 110}},
+                                   false);
+  set_intake(INTAKE_SPEED);
+  chassis.pid_wait();
+
+  // Run the end of the function
+  defense_end(time_start, touch_bar);
+}
+
+void raw_defense2ballinterupt_barrier(bool touch_bar) {
+  defense_odom_start();             // Setup defense starting position
+  int time_start = pros::millis();  // Timestamp when this auto started
+
+  // Rush towards closer center ball
+  chassis.pid_odom_injected_pp_set({{{8, 33}, fwd, 110}},
+                                   false);
+  set_intake(INTAKE_SPEED);
+  chassis.pid_wait();
+
+  // Rush towards closer center ball
+  chassis.pid_odom_injected_pp_set({{{20.5, 33}, fwd, 70}},
+                                   false);
+  pros::delay(150);
+  set_intake(OUTAKE_SPEED);
+  chassis.pid_wait();
+  pros::delay(1000);
+
+  // Run the end of the function
+  defense_end(time_start, touch_bar);
+}
+
+void defense2ball() { raw_defense2ball(true); }
+void defense2ballinterupt_barrier() { raw_defense2ballinterupt_barrier(true); }
+void defense2ball_nobar() { raw_defense2ball(false); }
+void defense2ballinterupt_barrier_nobar() { raw_defense2ballinterupt_barrier(false); }
+
+// Defense 2 Ball with Interrupt
+void defense2ballinterupt(bool touch_bar) {
+  defense_odom_start();             // Setup defense starting position
+  int time_start = pros::millis();  // Timestamp when this auto started
+
+  // Rush towards farther center back
+  chassis.pid_odom_smooth_pp_set({{{4, 16}, fwd, 110},
+                                  {{8, 28}, fwd, 110},
+                                  {{13, 30}, fwd, 110},
+                                  {{18, 34}, fwd, 110}},
+                                 false);
+  set_intake(INTAKE_SPEED);
+  chassis.pid_wait();
+
+  // Run the end of the function
+  defense_end(time_start, touch_bar);
+}
 
 ///
 // Drive Example
