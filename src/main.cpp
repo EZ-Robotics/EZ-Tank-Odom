@@ -3,8 +3,24 @@
 #include "autons.hpp"
 
 // Drive motors.  These are used in GUI and Template
-std::vector<int> left_motors = {-2, -1, -11, -15};
-std::vector<int> right_motors = {16, 6, 7, 8};
+std::vector<int> left_motors = {-5, -6, -7, -8};
+std::vector<int> right_motors = {11, 15, 16, 17};
+
+// Chassis constructor
+ez::Drive chassis(
+    left_motors,   // Left motors
+    right_motors,  // Right motors
+    6,             // IMU Port
+    3.25,          // Wheel size
+    507,           // Cart RPM
+    1.0,           // Gear ratio
+    1.0            // Drive width
+);
+
+/*
+// Drive motors.  These are used in GUI and Template
+std::vector<int> left_motors = {-5, -6, -7, -8};
+std::vector<int> right_motors = {11, 15, 16, 17};
 
 // Chassis constructor
 ez::Drive chassis(
@@ -15,7 +31,7 @@ ez::Drive chassis(
     600,           // Cart RPM
     1.6667,        // Gear ratio
     8.93           // Drive width
-);
+);*/
 
 // GUI Constructor
 ez::GUI display(
@@ -74,29 +90,93 @@ void initialize() {
   intake_init();
 }
 
+void testboom(double x, double y, double theta) {
+  pose carrot = util::vector_off_point(16, {x, y, theta /*+ add*/ - 180});
+  chassis.pid_odom_smooth_pp_set({{carrot, fwd, 110},
+                                  {{x, y}, fwd, 110}});
+}
+
 // Auton
 void autonomous() {
-  chassis.pid_targets_reset();                // Resets PID targets to 0
-  chassis.drive_imu_reset();                  // Reset gyro position to 0
-  chassis.drive_sensor_reset();               // Reset drive sensors to 0
-  chassis.drive_brake_set(MOTOR_BRAKE_HOLD);  // Set motors to hold.  This helps autonomous consistency
-  chassis.odom_pose_set({0, 0, 0});
+  chassis.pid_targets_reset();                 // Resets PID targets to 0
+  chassis.drive_imu_reset();                   // Reset gyro position to 0
+  chassis.drive_sensor_reset();                // Reset drive sensors to 0
+  chassis.drive_brake_set(MOTOR_BRAKE_COAST);  // Set motors to hold.  This helps autonomous consistency
+  chassis.odom_pose_set({-4, 0, 0});
   chassis.drive_odom_enable(true);
   chassis.SPACING = 0.5;
   pros::delay(10);
 
-  // ez::as::auton_selector.selected_auton_call(); // Calls selected auton from autonomous selector
-  display.auton_call();
-  /*double x = 12;
-  double y = 24;
-  int speed = 60;
+  /*
+  chassis.pid_drive_toggle(true);
+  chassis.pid_print_toggle(true);
 
+  chassis.pid_odom_ptp_set({{0, 18}, fwd, 127});
+  while (true) {
+    pros::delay(10);
+  }
+  */
+
+  chassis.drive_brake_set(MOTOR_BRAKE_HOLD);
+  int iteration = 0;
+  int delay_time = 10;
+  int fast = 100;
+  for (int i = 0; i < 500; i += delay_time) {
+    int pow = (iteration++ % 2 == 0) ? 0 : 1;
+    chassis.drive_set(fast, fast - pow);
+    pros::delay(delay_time);
+  }
+  chassis.drive_set(0, 0);
+  pros::delay(50);
+  printf("%f\n", chassis.drive_imu_get());
+
+  // chassis.pid_odom_injected_pp_set({{{12, 24}, fwd, 127}});
+  // chassis.pid_wait();
+  //   while(true){}
+
+  // chassis.pid_odom_smooth_pp_set({{{0, 16}, fwd, 127},
+  //                                 {{16, 16}, fwd, 127}});
+  // chassis.pid_wait();
+
+  /*
+  double x = 16;
+  double y = 16;
+  int speed = 70;
+  chassis.pid_odom_smooth_pp_set({{{0, y}, fwd, speed},
+                                  {{x, y}, fwd, speed},
+                                  {{x, x / 2.0}, fwd, speed},
+                                  {{0, 0}, fwd, speed},
+                                  {{0, y + (y / 2.0)}, fwd, speed},
+                                  {{0, 0}, rev, speed}});
+  chassis.pid_wait();
+
+  // chassis.pid_odom_ptp_set({{16, 16}, fwd, 127});
+  while (true) {
+    pros::delay(10);
+  }
+  */
+
+  // chassis.pid_odom_ptp_set({{0, 24}, fwd, 127});
+  // while (true) {
+  // }
+  // testboom(16, 16, 90);
+  // chassis.pid_odom_boomerang_set({{24, 24, 90}, fwd, 127});
+  // while (true) {
+  //}
+  //  chassis.pid_wait();
+
+  /*
+  double x = 16;
+  double y = 16;
+  int speed = 60;
   chassis.pid_odom_smooth_pp_set({{{0, y}, fwd, speed},
                                   {{x, y}, fwd, speed},
                                   {{x, 0}, fwd, speed},
-                                  {{0, 0}, fwd, speed}},
-                                 true);
-  chassis.pid_wait();*/
+                                  {{0, 0}, fwd, speed}});
+  chassis.pid_wait();
+  */
+
+  // display.auton_call();
 
   // chassis.pid_odom_injected_pp_set({{{0, 7}, fwd, 110}}, false);
   // chassis.pid_wait_until(4_in);
@@ -135,15 +215,16 @@ void opcontrol() {
       // Modifying track width
       //  only allow this to run when PID Tuner is disabled
       if (!chassis.pid_tuner_enabled()) {
+        double adjust = 0.001;
         // When A is pressed, increase track width
         if (master.get_digital_new_press(DIGITAL_A)) {
-          chassis.drive_width_set(chassis.drive_width_get() + 0.1);
-          printf("%.2f\n", chassis.drive_width_get());
+          chassis.drive_imu_scaler_set(chassis.drive_imu_scaler_get() + adjust);
+          printf("%f\n", chassis.drive_imu_scaler_get());
         }
         // When Y is pressed, decrease track width
         else if (master.get_digital_new_press(DIGITAL_Y)) {
-          chassis.drive_width_set(chassis.drive_width_get() - 0.1);
-          printf("%.2f\n", chassis.drive_width_get());
+          chassis.drive_imu_scaler_set(chassis.drive_imu_scaler_get() - adjust);
+          printf("%f\n", chassis.drive_imu_scaler_get());
         }
       }
     }

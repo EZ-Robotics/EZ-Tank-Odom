@@ -6,7 +6,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #include "EZ-Template/api.hpp"
 
-// Returns a distance that the robot is away from target, but this keeps sign.
+// Returns a distance that the robot is away from target, but this keeps sgn.
 double Drive::is_past_target(pose target, pose current) {
   // Translated current x, y translated around origin
   double fakek_y = (current.y - target.y);
@@ -36,7 +36,7 @@ std::vector<pose> Drive::find_point_to_face(pose current, pose target, bool set_
     angle = 90.0 - util::to_deg(atan(m));
   }
   pose ptf1 = util::vector_off_point(LOOK_AHEAD, {target.x, target.y, angle});
-  pose ptf2 = util::vector_off_point(LOOK_AHEAD, {target.x, target.y, angle + 180});
+  pose ptf2 = util::vector_off_point(-LOOK_AHEAD, {target.x, target.y, angle});
 
   if (set_global) {
     double ptf1_dist = util::distance_to_point(ptf1, current);

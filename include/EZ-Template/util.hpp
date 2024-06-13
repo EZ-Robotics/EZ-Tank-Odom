@@ -72,7 +72,8 @@ enum e_mode { DISABLE = 0,
               TURN_TO_POINT = 3,
               DRIVE = 4,
               POINT_TO_POINT = 5,
-              PURE_PURSUIT = 6 };
+              PURE_PURSUIT = 6,
+              BOOMERANG_PTP = 7 };
 
 /**
  * Enum for turn types
@@ -92,7 +93,7 @@ enum turn_types { FWD = 0,
 typedef struct pose {
   double x;
   double y;
-  double theta;
+  double theta = errno;
 } pose;
 
 /**
@@ -126,6 +127,11 @@ bool reversed_active(double input);
  * Returns input restricted to min-max threshold
  */
 double clamp(double input, double max, double min);
+
+/**
+ * EMA filter
+ */
+double ema(double current, double previous, double smooth);
 
 /**
  * Is the SD card plugged in?

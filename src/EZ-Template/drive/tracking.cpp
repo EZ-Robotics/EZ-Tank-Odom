@@ -5,16 +5,19 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
 #include "EZ-Template/drive/drive.hpp"
+#include "EZ-Template/util.hpp"
 
 using namespace ez;
 
 void Drive::odom_pose_x_set(double x) {
   odom_target.x = x;
   odom_current.x = x;
+  odom_last.x = x;
 }
 void Drive::odom_pose_y_set(double y) {
   odom_target.y = y;
   odom_current.y = y;
+  odom_last.y = y;
 }
 
 void Drive::odom_pose_set(pose itarget) {
@@ -38,6 +41,7 @@ void Drive::ez_tracking_task() {
   if (!imu_calibration_complete || !odometry_enabled) {
     l_last = 0;
     r_last = 0;
+    odom_last = {0, 0, 0};
     last_theta = 0;
     return;
   }
@@ -86,9 +90,19 @@ void Drive::ez_tracking_task() {
 
   odom_current.x += (/*Xx +*/ Yx);
   odom_current.y += (/*Xy +*/ Yy);
-  angle_rad += theta;  // angle_rad += theta;
+  angle_rad = current_global_theta;  // angle_rad += theta;
   encoder_angle_rad += encoder_theta;
-  odom_current.theta = util::to_deg(angle_rad);  // drive_imu_get();
+  if (!turn_with_encoder)
+    odom_current.theta = util::to_deg(angle_rad);
+  else
+    odom_current.theta = util::to_deg(encoder_angle_rad);
+
+  if (odom_current.x != odom_last.x || odom_current.y != odom_last.y) {
+    velocity_current = util::ema(util::distance_to_point(odom_current, odom_last) / 0.01, velocity_last, 0.95);
+    // velocity_current = util::distance_to_point(odom_current, odom_last) / 0.01;
+    velocity_last = velocity_current;
+    odom_last = odom_current;
+  }
 
   // pros::delay(1);
   // }

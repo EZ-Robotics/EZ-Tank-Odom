@@ -18,7 +18,12 @@ const int OUTAKE_SPEED = -127;
 // Constants
 ///
 void default_constants() {
-  chassis.pid_heading_constants_set(11, 0, 50);
+  chassis.drive_imu_scaler_set(0.997);
+
+  // chassis.pid_heading_constants_set(11, 0.003, 50);
+  // chassis.pid_heading_constants_set(7.0, 0, 50);
+  //chassis.pid_heading_constants_set(13, 0, 250);
+  chassis.pid_heading_constants_set(5, 0, 35);
   chassis.pid_drive_constants_set(25, 0, 100);
   chassis.pid_turn_constants_set(5, 0.003, 35, 15);
   chassis.pid_swing_constants_set(7, 0, 45);
@@ -30,6 +35,31 @@ void default_constants() {
   chassis.pid_odom_drive_exit_condition_set(100_ms, 1_in, 300_ms, 3_in, 500_ms, 500_ms);
 
   chassis.slew_drive_constants_set(7_in, 80);
+}
+
+double last_set_angle = 0.0;
+double added_angle = 5.0;
+double added_distance = 3.0;
+void swing(ez::e_swing swing_type, double angle, int speed, bool slew = false) {
+  last_set_angle = angle;
+  chassis.pid_swing_set(swing_type, angle + added_angle, speed, 0, slew);
+  chassis.pid_wait_until(angle);
+}
+
+void turn(double angle, int speed, bool slew = false) {
+  last_set_angle = angle;
+  chassis.pid_turn_set(angle + added_angle, speed, slew);
+  chassis.pid_wait_until(angle);
+}
+
+void drive(double distance, int speed, bool slew = false) {
+  if (chassis.aPID.target != last_set_angle) {
+    chassis.pid_drive_toggle(false);
+    chassis.pid_turn_set(last_set_angle, 0, false);
+  }
+  chassis.pid_drive_set(distance + added_distance, speed, slew);
+  chassis.pid_drive_toggle(true);
+  chassis.pid_wait_until(added_distance);
 }
 
 ///

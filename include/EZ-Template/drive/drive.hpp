@@ -213,7 +213,7 @@ class Drive {
   /**
    * Current mode of the drive.
    */
-  e_mode mode;
+  e_mode mode = DISABLE;
 
   /**
    * Sets current mode of drive.
@@ -341,8 +341,14 @@ class Drive {
   void drive_width_set(double input);
   void drive_odom_enable(bool input);
   double drive_width_get();
+  double velocity_current = 0.0;
+  double velocity_last = 0.0;
   pose odom_target = {0, 0, 0};
   pose odom_current = {0, 0, 0};
+  pose odom_last = {0, 0, 0};
+  double IMU_SCALER = 1.0;
+  void drive_imu_scaler_set(double scaler);
+  double drive_imu_scaler_get();
   std::vector<odom> pp_movements;
   std::vector<int> injected_pp_index;
   int pp_index = 0;
@@ -360,6 +366,7 @@ class Drive {
   void pid_odom_pp_set(std::vector<odom> imovements, bool slew_on = false);
   void pid_odom_injected_pp_set(std::vector<odom> imovements, bool slew_on = false);
   void pid_odom_smooth_pp_set(std::vector<odom> imovements, bool slew_on = false);
+  void pid_odom_boomerang_set(odom imovement, bool slew_on = false);
   std::vector<odom> smooth_path(std::vector<odom> ipath, double weight_smooth = 0.75, double weight_data = 0.03, double tolerance = 0.0001);
   double is_past_target(pose target, pose current);
   void raw_pid_odom_pp_set(std::vector<odom> imovements, bool slew_on);
@@ -1407,7 +1414,9 @@ class Drive {
   float pid_tuner_increment_start_i_get();
 
  private:  // !Auton
-           // PID Tuner
+  // PID Tuner
+
+  float last_l_out = 0.0, last_r_out = 0.0;
   bool drive_toggle = true;
   bool print_toggle = true;
   int swing_min = 0;
@@ -1461,6 +1470,8 @@ class Drive {
   std::vector<pose> find_point_to_face(pose current, pose target, bool set_global = false);
   void raw_pid_odom_ptp_set(odom imovement, bool slew_on);
   std::vector<odom> inject_points(std::vector<odom> imovements);
+  e_mode LAST_DRIVE_MODE = DISABLE;
+  void check_if_last_motion_swing();
 
   /**
    * Private wait until for drive
@@ -1517,6 +1528,7 @@ class Drive {
   void turn_pid_task();
   void ptp_task();
   void pp_task();
+  void boomerang_task();
   void ez_auto_task();
 
   /**

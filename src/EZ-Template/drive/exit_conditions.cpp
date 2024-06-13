@@ -112,12 +112,12 @@ void Drive::pid_wait() {
   }
 
   // Point to Point Exit
-  else if (mode == POINT_TO_POINT || mode == PURE_PURSUIT) {
+  else if (mode == POINT_TO_POINT || mode == PURE_PURSUIT || mode == BOOMERANG_PTP) {
     exit_output xy_exit = RUNNING;
     exit_output a_exit = RUNNING;
 
     // Wait until pure pursuit is on the last point, then continue as normal
-    if (mode == PURE_PURSUIT) {
+    if (mode == PURE_PURSUIT || mode == BOOMERANG_PTP) {
       while (pp_index != pp_movements.size() - 1) {
         xy_exit = xy_exit != RUNNING ? xy_exit : xyPID.exit_condition({left_motors[0], right_motors[0]});
         a_exit = a_exit != RUNNING ? a_exit : aPID.exit_condition({left_motors[0], right_motors[0]});
@@ -176,7 +176,7 @@ void Drive::wait_until_drive(double target) {
   pros::delay(10);
 
   // Make sure mode is correct
-  if (!(mode == DRIVE || mode == POINT_TO_POINT || mode == PURE_PURSUIT)) {
+  if (!(mode == DRIVE || mode == POINT_TO_POINT || mode == PURE_PURSUIT || mode == BOOMERANG_PTP)) {
     printf("Mode needs to be drive!\n");
     return;
   }
@@ -293,7 +293,7 @@ void Drive::wait_until_turn_swing(double target) {
 
 void Drive::pid_wait_until(okapi::QLength target) {
   // If robot is driving...
-  if (mode == DRIVE || mode == POINT_TO_POINT || mode == PURE_PURSUIT) {
+  if (mode == DRIVE || mode == POINT_TO_POINT || mode == PURE_PURSUIT || mode == BOOMERANG_PTP) {
     wait_until_drive(target.convert(okapi::inch));
   } else {
     printf("QLength not supported for turn or swing!\n");
@@ -311,7 +311,7 @@ void Drive::pid_wait_until(okapi::QAngle target) {
 
 void Drive::pid_wait_until(double target) {
   // If driving...
-  if (mode == DRIVE || mode == POINT_TO_POINT || mode == PURE_PURSUIT) {
+  if (mode == DRIVE || mode == POINT_TO_POINT || mode == PURE_PURSUIT || mode == BOOMERANG_PTP) {
     wait_until_drive(target);
   }
   // If turning or swinging...

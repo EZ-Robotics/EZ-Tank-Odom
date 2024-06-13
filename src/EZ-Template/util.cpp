@@ -159,6 +159,10 @@ double absolute_angle_to_point(pose itarget, pose icurrent) {
   return error;
 }
 
+double ema(double current, double previous, double smooth) {
+  return (current * smooth) + (previous * (1 - smooth));
+}
+
 // Outputs angle within 180 t0 -180
 double wrap_angle(double theta) {
   while (theta > 180) theta -= 360;
@@ -192,6 +196,7 @@ pose vector_off_point(double added, pose icurrent) {
 
 std::vector<pose> boomerang(pose start, pose itarget, double dlead) {
   double h = std::hypot(start.x - itarget.x, start.y - itarget.y);
+  h = h > 18.0 ? 18.0 : h;
   std::vector<pose> carrot;
   double new_x = itarget.x - h * sin(to_rad(itarget.theta)) * dlead;
   double new_y = itarget.y - h * cos(to_rad(itarget.theta)) * dlead;

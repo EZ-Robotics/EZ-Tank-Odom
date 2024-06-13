@@ -120,8 +120,18 @@ void Drive::drive_angle_set(okapi::QAngle p_angle) {
   drive_angle_set(angle);
 }
 
-void Drive::drive_mode_set(e_mode p_mode) { mode = p_mode; }
+void Drive::drive_mode_set(e_mode p_mode) {
+  LAST_DRIVE_MODE = mode;  // Keep track of the previous drive mode
+  mode = p_mode;
+}
 e_mode Drive::drive_mode_get() { return mode; }
+
+void Drive::check_if_last_motion_swing() {
+  if (LAST_DRIVE_MODE == SWING) {
+    odom_target.x = odom_current.x;
+    odom_target.y = odom_current.y;
+  }
+}
 
 void Drive::pid_turn_min_set(int min) { turn_min = abs(min); }
 int Drive::pid_turn_min_get() { return turn_min; }
@@ -275,6 +285,8 @@ void Drive::pid_swing_set(e_swing type, double target, int speed, int opposite_s
   swingPID.target_set(target);
   headingPID.target_set(target);  // Update heading target for next drive motion
   pid_speed_max_set(speed);
+  odom_target.theta = target;
+  odom_current.theta = target;
   swing_opposite_speed = opposite_speed;
 
   // Initialize slew
@@ -332,7 +344,14 @@ void Drive::raw_pid_odom_ptp_set(odom imovement, bool slew_on) {
   current_turn_type = imovement.turn_type;
 
   // Calculate the point to look at
-  point_to_face = find_point_to_face(odom_target, {imovement.target.x, imovement.target.y}, true);
+  pose tar = {imovement.target.x, imovement.target.y};
+  if (imovement.target.theta != errno) {
+    float dist = util::distance_to_point(odom_current, tar);
+    pose temp = util::vector_off_point(-dist, tar);
+    find_point_to_face(temp, tar, true);
+  } else {
+    find_point_to_face(odom_current, tar, true);
+  }
 
   // Set max speed
   pid_speed_max_set(imovement.max_xy_speed);
@@ -357,6 +376,9 @@ void Drive::raw_pid_odom_ptp_set(odom imovement, bool slew_on) {
     pid_consts = forward_drivePID.constants_get();
     slew_consts = slew_forward.constants_get();
   }
+
+  xyPID.use_cur = true;
+  aPID.use_cur = true;
 
   // Set targets for the side that isn't moving
   xyPID.constants_set(pid_consts.kp, pid_consts.ki, pid_consts.kd, pid_consts.start_i);
@@ -390,12 +412,40 @@ void Drive::raw_pid_odom_ptp_set(odom imovement, bool slew_on) {
 
 // Move to point
 void Drive::pid_odom_ptp_set(odom imovement, bool slew_on) {
+  // Check if the last motion was a swing
+  check_if_last_motion_swing();
+
   // This is used for wait_until
   l_start = drive_sensor_left();
   r_start = drive_sensor_right();
 
   raw_pid_odom_ptp_set(imovement, slew_on);
   drive_mode_set(POINT_TO_POINT);
+}
+
+// Boomerang
+void Drive::pid_odom_boomerang_set(odom imovement, bool slew_on) {
+  // Check if the last motion was a swing
+  check_if_last_motion_swing();
+
+  // Clear current list of targets
+  pp_movements.clear();
+  pp_index = 0;
+
+  // Set new target
+  pp_movements.push_back(imovement);
+
+  // This is used for wait_until
+  l_start = drive_sensor_left();
+  r_start = drive_sensor_right();
+
+  raw_pid_odom_ptp_set(imovement, slew_on);
+
+  // This is used for wait_until
+  l_start = drive_sensor_left();
+  r_start = drive_sensor_right();
+
+  drive_mode_set(BOOMERANG_PTP);
 }
 
 // Raw pure pursuit
@@ -418,6 +468,9 @@ void Drive::raw_pid_odom_pp_set(std::vector<odom> imovements, bool slew_on) {
 
 // Pure pursuit
 void Drive::pid_odom_pp_set(std::vector<odom> imovements, bool slew_on) {
+  // Check if the last motion was a swing
+  check_if_last_motion_swing();
+
   // This is used for pid_wait_until_pp()
   injected_pp_index.clear();
   for (int i = 0; i < imovements.size(); i++) {
@@ -430,6 +483,9 @@ void Drive::pid_odom_pp_set(std::vector<odom> imovements, bool slew_on) {
 
 // Smooth injected pure pursuit
 void Drive::pid_odom_injected_pp_set(std::vector<ez::odom> imovements, bool slew_on) {
+  // Check if the last motion was a swing
+  check_if_last_motion_swing();
+
   // This is used for pid_wait_until_pp()
   injected_pp_index.clear();
   for (int i = 0; i < imovements.size(); i++) {
@@ -443,6 +499,9 @@ void Drive::pid_odom_injected_pp_set(std::vector<ez::odom> imovements, bool slew
 
 // Smooth injected pure pursuit
 void Drive::pid_odom_smooth_pp_set(std::vector<odom> imovements, bool slew_on) {
+  // Check if the last motion was a swing
+  check_if_last_motion_swing();
+
   // This is used for pid_wait_until_pp()
   injected_pp_index.clear();
   for (int i = 0; i < imovements.size(); i++) {

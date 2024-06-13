@@ -305,8 +305,10 @@ void Drive::drive_imu_reset(double new_heading) {
   last_theta = encoder_angle_rad;
 }
 double Drive::drive_imu_get() {
-  return turn_with_encoder ? odom_current.theta : imu.get_rotation();
+  return turn_with_encoder ? odom_current.theta : imu.get_rotation() * IMU_SCALER;
 }
+void Drive::drive_imu_scaler_set(double scaler) { IMU_SCALER = scaler; }
+double Drive::drive_imu_scaler_get() { return IMU_SCALER; }
 
 void Drive::drive_imu_display_loading(int iter) {
   // If the lcd is already initialized, don't run this function
