@@ -9,11 +9,11 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 using namespace ez;
 
 void Drive::odom_pose_x_set(double x) {
-  odom_target.x = x;
+  // odom_target.x = x;
   odom_current.x = x;
 }
 void Drive::odom_pose_y_set(double y) {
-  odom_target.y = y;
+  // odom_target.y = y;
   odom_current.y = y;
 }
 
@@ -58,7 +58,6 @@ void Drive::ez_tracking_task() {
   // c_last = c_current;
 
   // diff between wheels for correcting turning
-  float encoder_theta = (l_ - r_) / track_width;  // encoder theta
   float current_global_theta = ez::util::to_rad(drive_imu_get());
   float theta = current_global_theta - last_theta;  // imu theta
   last_theta = current_global_theta;
@@ -86,9 +85,8 @@ void Drive::ez_tracking_task() {
 
   odom_current.x += (/*Xx +*/ Yx);
   odom_current.y += (/*Xy +*/ Yy);
-  angle_rad += theta;  // angle_rad += theta;
-  encoder_angle_rad += encoder_theta;
-  odom_current.theta = util::to_deg(angle_rad);  // drive_imu_get();
+  angle_rad = current_global_theta;
+  odom_current.theta = drive_imu_get();  // drive_imu_get();
 
   // pros::delay(1);
   // }

@@ -58,8 +58,16 @@ void PID::i_reset_toggle(bool toggle) { reset_i_sgn = toggle; }
 bool PID::i_reset_get() { return reset_i_sgn; };
 
 double PID::compute(double current) {
-  error = target - current;
-  derivative = error - prev_error;
+  if (!use_cur) {
+    cur = current;
+    error = target - cur;
+  } else {
+    error = target;
+  }
+
+  // calculate derivative on measurement instead of error to avoid "derivative kick"
+  // https://www.isa.org/intech-home/2023/june-2023/features/fundamentals-pid-control
+  derivative = cur - prev_error;
 
   if (constants.ki != 0) {
     if (fabs(error) < constants.start_i)
@@ -69,9 +77,9 @@ double PID::compute(double current) {
       integral = 0;
   }
 
-  output = (error * constants.kp) + (integral * constants.ki) + (derivative * constants.kd);
+  output = (error * constants.kp) + (integral * constants.ki) - (derivative * constants.kd);
 
-  prev_error = error;
+  prev_error = cur;
 
   return output;
 }

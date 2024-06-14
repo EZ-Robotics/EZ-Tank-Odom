@@ -159,11 +159,11 @@ void Drive::swing_pid_task() {
 
 // Odom To Point Task
 void Drive::ptp_task() {
-  // Compute angle
-  int add = current_turn_type == REV ? 180 : 0;                                                       // Decide if going fwd or rev
-  double a_target = util::absolute_angle_to_point(point_to_face[!ptf1_running], odom_current) + add;  // Calculate the point for angle to face
-  aPID.target_set(util::wrap_angle(a_target - drive_imu_get()));                                      // Constrain error to -180 to 180
-  aPID.compute(0);
+  // Compute slew
+  slew_left.iterate(drive_sensor_left());
+  slew_right.iterate(drive_sensor_right());
+  // double max_slew_out = fmin(slew_left.output(), slew_right.output());
+  double max_slew_out = max_speed;
 
   // Decide if we've past the target or not
   int dir = (current_turn_type == REV ? -1 : 1);                                                          // If we're going backwards, add a -1
@@ -172,36 +172,44 @@ void Drive::ptp_task() {
   // Compute xy PID
   double temp_target = fabs(is_past_target(odom_target, odom_current));  // Use this instead of distance formula to fix impossible movements
   xyPID.target_set(temp_target * dir * flipped);
+  xyPID.cur = odom_current.x + odom_current.y;
   xyPID.compute(0);
+
+  // Compute angle
+  int add = current_turn_type == REV ? 180 : 0;  // Decide if going fwd or rev
+  pose ptf = point_to_face[!ptf1_running];
+  double a_target = util::absolute_angle_to_point(ptf, odom_current) + add;  // Calculate the point for angle to face
+  double wrapped_a_target = util::wrap_angle(a_target - drive_imu_get());    // Constrain error to -180 to 180
+
+  aPID.target_set(wrapped_a_target);
+  aPID.cur = drive_imu_get();
+  aPID.compute(0);
 
   // Prioritize turning by scaling xy_out down
   double cos_scale = cos(util::to_rad(aPID.target_get()));
-  double xy_out = xyPID.output * cos_scale;
+  double xy_out = util::clamp(xyPID.output, max_slew_out, -max_slew_out) * (cos_scale / 1.375);
+  double a_out = util::clamp(aPID.output, max_slew_out, -max_slew_out);
 
-  // Raw outputs
-  double l_out = xy_out + aPID.output;
-  double r_out = xy_out - aPID.output;
+  double forward = xy_out / 127.0;
+  double curve = a_out / 127.0;
 
-  // Compute slew
-  slew_left.iterate(drive_sensor_left());
-  slew_right.iterate(drive_sensor_right());
+  double l_out = forward + curve;
+  double r_out = forward - curve;
 
-  // Vector scaling so nothing can be larger then max speed
-  double max_slew_out = fmin(slew_left.output(), slew_right.output());
-  // When left and right slew are disabled, scale max speed by the turn scaler so robot goes slower in curves
-  if (fabs(l_out) > max_slew_out || fabs(r_out) > max_slew_out) {
-    if (fabs(l_out) > fabs(r_out)) {
-      r_out = r_out * (max_slew_out / fabs(l_out));
-      l_out = util::clamp(l_out, max_slew_out, -max_slew_out);
-    } else {
-      l_out = l_out * (max_slew_out / fabs(r_out));
-      r_out = util::clamp(r_out, max_slew_out, -max_slew_out);
-    }
+  // normalizes output
+  double faster_side = fmax(fabs(l_out), fabs(r_out));
+  if (faster_side > 1.0) {
+    l_out = l_out * (1.0 / faster_side);
+    r_out = r_out * (1.0 / faster_side);
   }
+
+  l_out = l_out * max_slew_out;
+  r_out = r_out * max_slew_out;
 
   // printf("cos %.2f   max_slew_out %.2f      headingerr: %.2f\n", cos_scale, max_slew_out, aPID.target_get());
   // printf("lr(%.2f, %.2f)   xy_raw: %.2f   xy_out: %.2f   heading_out: %.2f      cos: %.2f   max_slew_out: %.2f\n", l_out, r_out, xyPID.output, xy_out, aPID.output, cos_scale, max_slew_out);
   // printf("xy(%.2f, %.2f, %.2f)   xyPID: %.2f   aPID: %.2f     dir: %i   sgn: %i   past_target: %i    is_past_target: %i   is_past_using_xy: %i      fake_xy(%.2f, %.2f, %.2f)\n", odom_current.x, odom_current.y, odom_current.theta, xyPID.target_get(), aPID.target_get(), dir, flipped, past_target, (int)is_past_target(odom_target, odom_current), is_past_target_using_xy, fake_x, fake_y, util::to_deg(fake_angle));
+  // printf("xy(%.2f, %.2f, %.2f)   xyPID: %.2f   aPID: %.2f   stan: %.2f      ptf:(%.2f, %.2f)\n", odom_current.x, odom_current.y, odom_current.theta, xyPID.target_get(), aPID.target_get(), stan, ptf.x, ptf.y);
 
   // Set motors
   if (drive_toggle)

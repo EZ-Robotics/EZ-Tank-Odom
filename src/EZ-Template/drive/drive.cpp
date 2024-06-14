@@ -165,6 +165,8 @@ Drive::Drive(std::vector<int> left_motor_ports, std::vector<int> right_motor_por
 }
 
 void Drive::drive_defaults_set() {
+  imu.set_data_rate(5);
+
   // PID Constants
   pid_heading_constants_set(3, 0, 20, 0);
   pid_drive_constants_set(10, 0, 100, 0);

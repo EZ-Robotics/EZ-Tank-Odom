@@ -3,8 +3,8 @@
 #include "autons.hpp"
 
 // Drive motors.  These are used in GUI and Template
-std::vector<int> left_motors = {-2, -1, -11, -15};
-std::vector<int> right_motors = {16, 6, 7, 8};
+std::vector<int> left_motors = {-5, -6, -7, -8};
+std::vector<int> right_motors = {11, 15, 16, 17};
 
 // Chassis constructor
 ez::Drive chassis(
@@ -12,8 +12,8 @@ ez::Drive chassis(
     right_motors,  // Right motors
     21,            // IMU Port
     3.25,          // Wheel size
-    600,           // Cart RPM
-    1.6667,        // Gear ratio
+    420,           // Cart RPM
+    1.0,           // Gear ratio
     8.93           // Drive width
 );
 
@@ -26,9 +26,7 @@ ez::GUI display(
      {pros::Motor(left_motors[2]), "left 3"},
      {pros::Motor(left_motors[3]), "left 4"},
      {pros::Motor(right_motors[3]), "right 4"},
-     {pros::Motor(right_motors[2]), "right 3"},
-     {intake[0], "l inta"},
-     {intake[1], "r inta"}},
+     {pros::Motor(right_motors[2]), "right 3"}},
 
     {//{"defense 2 ball, grab farther ball and knock closer ball", defense2ballinterupt},
      {" offense 3 ball, touches bar ", offense3ball},
@@ -86,17 +84,27 @@ void autonomous() {
   pros::delay(10);
 
   // ez::as::auton_selector.selected_auton_call(); // Calls selected auton from autonomous selector
-  display.auton_call();
-  /*double x = 12;
-  double y = 24;
-  int speed = 60;
+  // display.auton_call();
+
+  // chassis.pid_odom_smooth_pp_set({{{16, 16}, fwd, 110}},
+  //                                false);
+  // chassis.pid_wait();
+
+  double x = 12;
+  double y = 16;
+  int speed = 110;
 
   chassis.pid_odom_smooth_pp_set({{{0, y}, fwd, speed},
                                   {{x, y}, fwd, speed},
                                   {{x, 0}, fwd, speed},
-                                  {{0, 0}, fwd, speed}},
-                                 true);
-  chassis.pid_wait();*/
+                                  {{0, 0}, fwd, speed},
+                                  {{0, y}, fwd, speed}},
+                                 false);
+  chassis.pid_wait();
+
+  chassis.pid_odom_smooth_pp_set({{{0, 0}, rev, speed}},
+                                 false);
+  chassis.pid_wait();
 
   // chassis.pid_odom_injected_pp_set({{{0, 7}, fwd, 110}}, false);
   // chassis.pid_wait_until(4_in);

@@ -192,6 +192,7 @@ class PID {
   double derivative;
   long time;
   long prev_time;
+  bool use_cur = false;
 
  private:
   int i = 0, j = 0, k = 0, l = 0;

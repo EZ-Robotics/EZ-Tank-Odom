@@ -18,7 +18,7 @@ const int OUTAKE_SPEED = -127;
 // Constants
 ///
 void default_constants() {
-  chassis.pid_heading_constants_set(11, 0, 50);
+  chassis.pid_heading_constants_set(8, 0, 50);
   chassis.pid_drive_constants_set(25, 0, 100);
   chassis.pid_turn_constants_set(5, 0.003, 35, 15);
   chassis.pid_swing_constants_set(7, 0, 45);

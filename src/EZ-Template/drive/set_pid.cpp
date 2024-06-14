@@ -131,13 +131,6 @@ int Drive::pid_swing_min_get() { return swing_min; }
 
 // Set drive PID raw
 void Drive::pid_drive_set(double target, int speed, bool slew_on, bool toggle_heading) {
-  if (odometry_enabled) {
-    pose ptarget = util::vector_off_point(target, odom_target);
-    turn_types dir = util::sgn(target) == 1 ? fwd : rev;
-    pid_odom_injected_pp_set({{ptarget, dir, speed}}, slew_on);
-    return;
-  }
-
   // Print targets
   if (print_toggle) printf("Drive Started... Target Value: %f in", target);
   if (slew_on && print_toggle) printf(" with slew");
@@ -332,7 +325,7 @@ void Drive::raw_pid_odom_ptp_set(odom imovement, bool slew_on) {
   current_turn_type = imovement.turn_type;
 
   // Calculate the point to look at
-  point_to_face = find_point_to_face(odom_target, {imovement.target.x, imovement.target.y}, true);
+  point_to_face = find_point_to_face(odom_current, {imovement.target.x, imovement.target.y}, true);
 
   // Set max speed
   pid_speed_max_set(imovement.max_xy_speed);
@@ -357,6 +350,9 @@ void Drive::raw_pid_odom_ptp_set(odom imovement, bool slew_on) {
     pid_consts = forward_drivePID.constants_get();
     slew_consts = slew_forward.constants_get();
   }
+
+  xyPID.use_cur = true;
+  aPID.use_cur = true;
 
   // Set targets for the side that isn't moving
   xyPID.constants_set(pid_consts.kp, pid_consts.ki, pid_consts.kd, pid_consts.start_i);
