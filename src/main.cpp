@@ -1,5 +1,6 @@
 #include "main.h"
 
+#include "EZ-Template/util.hpp"
 #include "autons.hpp"
 
 // Drive motors.  These are used in GUI and Template
@@ -90,19 +91,25 @@ void autonomous() {
   //                                false);
   // chassis.pid_wait();
 
+  // chassis.drive_brake_set(MOTOR_BRAKE_COAST);
+  chassis.dlead = 0.375;
+  // chassis.pid_drive_toggle(false);
+  chassis.pid_print_toggle(false);
+
+  // chassis.odom_pose_set({12, 24, 0});
+
+  // chassis.pid_odom_boomerang_set({{16, 16, 0}, fwd, 60}, false);
+  // chassis.pid_wait();
+
+  // chassis.pid_odom_boomerang_set({{0, 0, 0}, rev, 60}, false);
+  // chassis.pid_wait();
+
   double x = 12;
   double y = 16;
-  int speed = 110;
-
-  chassis.pid_odom_smooth_pp_set({{{0, y}, fwd, speed},
-                                  {{x, y}, fwd, speed},
-                                  {{x, 0}, fwd, speed},
-                                  {{0, 0}, fwd, speed},
-                                  {{0, y}, fwd, speed}},
-                                 false);
-  chassis.pid_wait();
-
-  chassis.pid_odom_smooth_pp_set({{{0, 0}, rev, speed}},
+  int speed = 80;
+  chassis.pid_odom_smooth_pp_set({{{0, y, -45}, fwd, speed},
+                                  {{x, y}, rev, speed},
+                                  {{x, 0}, fwd, speed}},
                                  false);
   chassis.pid_wait();
 

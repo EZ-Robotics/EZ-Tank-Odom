@@ -31,6 +31,9 @@ void Drive::ez_auto_task() {
         case PURE_PURSUIT:
           pp_task();
           break;
+        case BOOMERANG:
+          boomerang_task();
+          break;
         case DISABLE:
           break;
         default:
@@ -209,7 +212,7 @@ void Drive::ptp_task() {
   // printf("cos %.2f   max_slew_out %.2f      headingerr: %.2f\n", cos_scale, max_slew_out, aPID.target_get());
   // printf("lr(%.2f, %.2f)   xy_raw: %.2f   xy_out: %.2f   heading_out: %.2f      cos: %.2f   max_slew_out: %.2f\n", l_out, r_out, xyPID.output, xy_out, aPID.output, cos_scale, max_slew_out);
   // printf("xy(%.2f, %.2f, %.2f)   xyPID: %.2f   aPID: %.2f     dir: %i   sgn: %i   past_target: %i    is_past_target: %i   is_past_using_xy: %i      fake_xy(%.2f, %.2f, %.2f)\n", odom_current.x, odom_current.y, odom_current.theta, xyPID.target_get(), aPID.target_get(), dir, flipped, past_target, (int)is_past_target(odom_target, odom_current), is_past_target_using_xy, fake_x, fake_y, util::to_deg(fake_angle));
-  // printf("xy(%.2f, %.2f, %.2f)   xyPID: %.2f   aPID: %.2f   stan: %.2f      ptf:(%.2f, %.2f)\n", odom_current.x, odom_current.y, odom_current.theta, xyPID.target_get(), aPID.target_get(), stan, ptf.x, ptf.y);
+  // printf("xy(%.2f, %.2f, %.2f)   xyPID: %.2f   aPID: %.2f   ptf:(%.2f, %.2f)\n", odom_current.x, odom_current.y, odom_current.theta, xyPID.target_get(), aPID.target_get(), ptf.x, ptf.y);
 
   // Set motors
   if (drive_toggle)
@@ -218,6 +221,35 @@ void Drive::ptp_task() {
   // This is for wait_until
   leftPID.compute(drive_sensor_left());
   rightPID.compute(drive_sensor_right());
+}
+
+void Drive::boomerang_task() {
+  int target_index = mode == BOOMERANG ? 1 : pp_index;
+  pose target = pp_movements[target_index].target;
+
+  // target.theta += current_turn_type == REV ? 180 : 0;  // Decide if going fwd or rev
+  int dir = current_turn_type == REV ? -1 : 1;
+
+  double h = util::distance_to_point(target, odom_current) * dlead;
+  double max = 12.0;
+  h = h > max ? max : h;
+  h *= dir;
+
+  pose temp = util::vector_off_point(-h, pp_movements[target_index].target);
+  temp.theta = target.theta;
+
+  if (util::distance_to_point(target, odom_current) < LOOK_AHEAD / 2.0) {
+    temp = target;
+    if (mode == BOOMERANG) pp_index = 1;
+  }
+
+  if (odom_target.x != temp.x || odom_target.y != temp.y) {
+    raw_pid_odom_ptp_set({temp, pp_movements[target_index].turn_type, pp_movements[target_index].max_xy_speed}, false);
+  }
+
+  // printf("cur(%.2f, %.2f, %.2f)   tar(%.2f, %.2f, %.2f)   h %.2f  \n", odom_current.x, odom_current.y, odom_current.theta, temp.x, temp.y, temp.theta, h);
+
+  ptp_task();
 }
 
 void Drive::pp_task() {
@@ -229,5 +261,11 @@ void Drive::pp_task() {
     }
   }
 
-  ptp_task();
+  if (pp_movements[pp_index].target.theta != ANGLE_NOT_SET) {
+    boomerang_task();
+    // printf("boom   dir: %i\n", current_turn_type);
+  } else {
+    ptp_task();
+    // printf("ptp   dir: %i\n", current_turn_type);
+  }
 }

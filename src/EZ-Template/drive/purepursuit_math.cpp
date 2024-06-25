@@ -5,6 +5,8 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
 #include "EZ-Template/api.hpp"
+#include "EZ-Template/util.hpp"
+#include "pros/motors.hpp"
 
 // Returns a distance that the robot is away from target, but this keeps sign.
 double Drive::is_past_target(pose target, pose current) {
@@ -36,7 +38,7 @@ std::vector<pose> Drive::find_point_to_face(pose current, pose target, bool set_
     angle = 90.0 - util::to_deg(atan(m));
   }
   pose ptf1 = util::vector_off_point(LOOK_AHEAD, {target.x, target.y, angle});
-  pose ptf2 = util::vector_off_point(LOOK_AHEAD, {target.x, target.y, angle + 180});
+  pose ptf2 = util::vector_off_point(-LOOK_AHEAD, {target.x, target.y, angle});
 
   if (set_global) {
     double ptf1_dist = util::distance_to_point(ptf1, current);
@@ -61,7 +63,24 @@ std::vector<odom> Drive::inject_points(std::vector<ez::odom> imovements) {
 
   // Create new vector that includes the starting point
   std::vector<odom> input = imovements;
-  input.insert(input.begin(), {{{odom_target.x, odom_target.y, imovements[0].target.theta}, imovements[0].turn_type, imovements[0].max_xy_speed}});
+  input.insert(input.begin(), {{{odom_current.x, odom_current.y, ANGLE_NOT_SET}, imovements[0].turn_type, imovements[0].max_xy_speed}});
+
+  int t = 0;
+  for (int i = 0; i < input.size() - 1; i++) {
+    int j = i + t;
+    j = i;
+    if (input[j].target.theta != ANGLE_NOT_SET) {
+      // Calculate the new point with known information: hypot and angle
+      double angle_to_point = input[j].target.theta;
+      int dir = input[j].turn_type == REV ? -1 : 1;
+      pose new_point = util::vector_off_point(LOOK_AHEAD * dir, {input[j].target.x, input[j].target.y, angle_to_point});
+      new_point.theta = ANGLE_NOT_SET;
+
+      input.insert(input.cbegin() + j + 1, {new_point, input[j].turn_type, input[j].max_xy_speed});
+
+      t++;
+    }
+  }
 
   std::vector<odom> output;  // Output vector
   int output_index = -1;     // Keeps track of current index
@@ -73,32 +92,40 @@ std::vector<odom> Drive::inject_points(std::vector<ez::odom> imovements) {
 
     // Add parent point
     // Make sure the robot is looking at next point
-    output.push_back({input[i].target,
-                      input[i + 1].turn_type,
+    output.push_back({{input[i].target.x, input[i].target.y, input[i].target.theta},
+                      input[i].turn_type,
                       input[i].max_xy_speed});
     output_index++;
     injected_pp_index.push_back(output_index);
+    printf("parent %.2f, %.2f, %.2f   dir: %i\n", input[i].target.x, input[i].target.y, input[i].target.theta, input[i].turn_type);
 
     // Add the injected points
     for (int j = 0; j < num_of_points_that_fit; j++) {
-      // Calculate the new point with known information: hypot and angle
-      double angle_to_point = util::absolute_angle_to_point(input[i + 1].target, input[i].target);
-      pose new_point = util::vector_off_point(SPACING, {output[output_index].target.x, output[output_index].target.y, angle_to_point});
+      if (input[i + 1].target.theta == ANGLE_NOT_SET) {
+        // Calculate the new point with known information: hypot and angle
+        double angle_to_point = util::absolute_angle_to_point(input[i + 1].target, input[i].target);
+        pose new_point = util::vector_off_point(SPACING, {output[output_index].target.x, output[output_index].target.y, angle_to_point});
 
-      // Make sure the robot is looking at next point
-      turn_types turn;
-      turn = input[i + 1].turn_type;
-
-      // Push new point to vector
-      output.push_back({{new_point.x, new_point.y, input[i + 1].target.theta},
-                        turn,
-                        input[i + 1].max_xy_speed});
-      output_index++;
+        // If the new point is the same as the parent point, remove it to save 10ms delay
+        // if (!(new_point.x == input[i + 1].target.x && new_point.y == input[i + 1].target.y)) {
+        // Push new point to vector
+        output.push_back({{new_point.x, new_point.y, ANGLE_NOT_SET},
+                          input[i + 1].turn_type,
+                          input[i + 1].max_xy_speed});
+        output_index++;
+        printf("  %.2f, %.2f, %.2f   dir: %i\n", new_point.x, new_point.y, ANGLE_NOT_SET, input[i + 1].turn_type);
+        // }
+      } else {
+        j = num_of_points_that_fit;
+      }
     }
     // Make sure the final point is there
     // output.push_back(input[i + 1]);
     // output_index++;
   }
+  output.push_back(input.back());
+  output_index++;
+  printf("parent %.2f, %.2f, %.2f   dir: %i\n", output.back().target.x, output.back().target.y, output.back().target.theta, output.back().turn_type);
 
   injected_pp_index.push_back(output_index);
 
@@ -108,13 +135,24 @@ std::vector<odom> Drive::inject_points(std::vector<ez::odom> imovements) {
 
 // Path smoothing based on https://medium.com/@jaems33/understanding-robot-motion-path-smoothing-5970c8363bc4
 std::vector<odom> Drive::smooth_path(std::vector<odom> ipath, double weight_smooth, double weight_data, double tolerance) {
-  double path[500][2];
-  double new_path[500][2];
+  double path[500][3];
+  double new_path[500][3];
+  std::vector<bool> dont_touch;
+  int t = 0;
 
   // Convert odom to array
   for (int i = 0; i < ipath.size(); i++) {
     path[i][0] = new_path[i][0] = ipath[i].target.x;
     path[i][1] = new_path[i][1] = ipath[i].target.y;
+    path[i][2] = new_path[i][2] = ipath[i].target.theta;
+
+    if (ipath[i].target.theta != ANGLE_NOT_SET || (t <= LOOK_AHEAD * 2 && t != 0)) {
+      dont_touch.push_back(true);
+      t++;
+    } else {
+      dont_touch.push_back(false);
+      t = 0;
+    }
   }
 
   double change = tolerance;
@@ -122,20 +160,24 @@ std::vector<odom> Drive::smooth_path(std::vector<odom> ipath, double weight_smoo
   while (change >= tolerance) {
     change = 0.0;
     for (int i = 1; i < ipath.size() - 2; i++) {
-      for (int j = 0; j < 2; j++) {
-        double x_i = path[i][j];
-        double y_i = new_path[i][j];
-        double y_prev = new_path[i - 1][j];
-        double y_next = new_path[i + 1][j];
+      // if (path[i][2] == ANGLE_NOT_SET) {
+      if (!dont_touch[i]) {
+        for (int j = 0; j < 2; j++) {
+          double x_i = path[i][j];
+          double y_i = new_path[i][j];
+          double y_prev = new_path[i - 1][j];
+          double y_next = new_path[i + 1][j];
 
-        double y_i_saved = y_i;
-        y_i += weight_data * (x_i - y_i) + weight_smooth * (y_next + y_prev - (2.0 * y_i));
-        new_path[i][j] = y_i;
+          double y_i_saved = y_i;
+          y_i += weight_data * (x_i - y_i) + weight_smooth * (y_next + y_prev - (2.0 * y_i));
+          new_path[i][j] = y_i;
 
-        change += abs(y_i - y_i_saved);
+          change += abs(y_i - y_i_saved);
+        }
       }
     }
   }
+  printf("\n\nsmooth\n");
 
   // Convert array to odom
   std::vector<odom> output = ipath;  // Set output to input so target angles, turn types and speed hold
@@ -143,6 +185,7 @@ std::vector<odom> Drive::smooth_path(std::vector<odom> ipath, double weight_smoo
   for (int i = 0; i < ipath.size(); i++) {
     output[i].target.x = new_path[i][0];
     output[i].target.y = new_path[i][1];
+    printf("(%.2f, %.2f, %.2f)   %i\n", output[i].target.x, output[i].target.y, output[i].target.theta, (int)dont_touch[i]);
   }
 
   return output;

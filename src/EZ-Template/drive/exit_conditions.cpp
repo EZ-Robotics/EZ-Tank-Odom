@@ -112,12 +112,12 @@ void Drive::pid_wait() {
   }
 
   // Point to Point Exit
-  else if (mode == POINT_TO_POINT || mode == PURE_PURSUIT) {
+  else if (mode == POINT_TO_POINT || mode == PURE_PURSUIT || mode == BOOMERANG) {
     exit_output xy_exit = RUNNING;
     exit_output a_exit = RUNNING;
 
     // Wait until pure pursuit is on the last point, then continue as normal
-    if (mode == PURE_PURSUIT) {
+    if (mode == PURE_PURSUIT || BOOMERANG) {
       while (pp_index != pp_movements.size() - 1) {
         xy_exit = xy_exit != RUNNING ? xy_exit : xyPID.exit_condition({left_motors[0], right_motors[0]});
         a_exit = a_exit != RUNNING ? a_exit : aPID.exit_condition({left_motors[0], right_motors[0]});

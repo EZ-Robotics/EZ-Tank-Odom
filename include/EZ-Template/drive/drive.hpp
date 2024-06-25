@@ -370,6 +370,7 @@ class Drive {
   bool is_past_target_using_xy = false;
   void pid_wait_until_pp(int index);
   double dlead = 1.0;
+  void pid_odom_boomerang_set(odom imovement, bool slew_on = false);
 
   /////
   //
@@ -1516,6 +1517,7 @@ class Drive {
   void swing_pid_task();
   void turn_pid_task();
   void ptp_task();
+  void boomerang_task();
   void pp_task();
   void ez_auto_task();
 

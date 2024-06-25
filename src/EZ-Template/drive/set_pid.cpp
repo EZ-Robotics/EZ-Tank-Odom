@@ -449,3 +449,36 @@ void Drive::pid_odom_smooth_pp_set(std::vector<odom> imovements, bool slew_on) {
   std::vector<odom> input_path = smooth_path(inject_points(imovements), 0.75, 0.03, 0.0001);
   raw_pid_odom_pp_set(input_path, slew_on);
 }
+
+// Pose to Pose
+void Drive::pid_odom_boomerang_set(odom imovement, bool slew_on) {
+  std::vector<odom> imovements;
+
+  // if (imovement.turn_type == rev) {
+  //   imovement.target.theta += 90;
+  // }
+
+  imovements.push_back({{odom_current.x, odom_current.y, imovement.target.theta}, imovement.turn_type, imovement.max_xy_speed});
+  imovements.push_back(imovement);
+
+  // This is used for pid_wait_until_pp()
+  injected_pp_index.clear();
+  for (int i = 0; i < imovements.size(); i++) {
+    injected_pp_index.push_back(i);
+  }
+
+  // Clear current list of targets
+  pp_movements.clear();
+  pp_index = 0;
+
+  // Set new target
+  pp_movements = imovements;
+
+  raw_pid_odom_ptp_set(pp_movements[1], slew_on);
+
+  // This is used for wait_until
+  l_start = drive_sensor_left();
+  r_start = drive_sensor_right();
+
+  drive_mode_set(BOOMERANG);
+}

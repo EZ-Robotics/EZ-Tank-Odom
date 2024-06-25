@@ -72,7 +72,8 @@ enum e_mode { DISABLE = 0,
               TURN_TO_POINT = 3,
               DRIVE = 4,
               POINT_TO_POINT = 5,
-              PURE_PURSUIT = 6 };
+              PURE_PURSUIT = 6,
+              BOOMERANG = 7 };
 
 /**
  * Enum for turn types
@@ -86,13 +87,15 @@ enum turn_types { FWD = 0,
                   rev = REV,
                   reverse = REV };
 
+const double ANGLE_NOT_SET = 0.0000000000000000000001;
+
 /**
  * Struct for coordinates
  */
 typedef struct pose {
-  double x;
-  double y;
-  double theta;
+  double x = 0.0;
+  double y = 0.0;
+  double theta = ANGLE_NOT_SET;
 } pose;
 
 /**
